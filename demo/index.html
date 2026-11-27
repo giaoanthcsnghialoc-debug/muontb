@@ -691,7 +691,7 @@ var EX = (function () {
   function tabsFor() {
     var t = [];
     if (has('GV')) t.push(['bao', '📝 Báo mượn'], ['ls', '🗂 Đã báo']);
-    if (has('NVTB') || has('ADMIN')) t.push(['hn', '📦 Giao – trả'], ['tuan', '📋 Theo tuần'], ['dm', '🧰 Danh mục'], ['so', '📒 Sổ mượn trả']);
+    if (has('NVTB') || has('ADMIN')) t.push(['hn', '📦 Giao – trả'], ['tuan', '📋 Theo tuần'], ['dm', '📚 Danh mục'], ['so', '📒 Sổ mượn trả']);
     if (has('ADMIN')) t.push(['qt', '⚙️ Quản trị']);
     return t;
   }
@@ -902,7 +902,7 @@ var EX = (function () {
     if (a.indexOf('dung chung') >= 0) return true;
     if (!b) return false;
     if (a.indexOf(b) >= 0 || b.indexOf(a) >= 0) return true;
-    var syn = [['khoa hoc tu nhien', 'khtn', 'vat li', 'hoa hoc', 'sinh hoc'], ['lich su', 'dia li'], ['the chat', 'the duc'], ['cong dan', 'gdcd'], ['tin hoc', 'tin']];
+    var syn = [['khoa hoc tu nhien', 'khtn', 'vat li', 'hoa hoc', 'sinh hoc'], ['lich su', 'dia li'], ['the chat', 'the duc'], ['cong dan', 'gdcd'], ['tin hoc', 'tin'], ['ngoai ngu', 'tieng anh'], ['am nhac', 'nghe thuat'], ['mi thuat', 'my thuat', 'nghe thuat'], ['trai nghiem', 'hdtn']];
     return syn.some(function (s) { var ia = s.some(function (x) { return a.indexOf(x) >= 0; }), ib = s.some(function (x) { return b.indexOf(x) >= 0; }); return ia && ib; });
   }
   function khoiMatch(ckhoi, lop) {
@@ -1284,7 +1284,7 @@ var EX = (function () {
     var C = {
       ma: col(['ma thiet bi', 'ma tb', 'ma do dung', 'ma so']) >= 0 ? col(['ma thiet bi', 'ma tb', 'ma do dung', 'ma so']) : col(['ma'], ['mau', 'mang']),
       ten: col(['ten thiet bi', 'ten do dung', 'ten tb']) >= 0 ? col(['ten thiet bi', 'ten do dung', 'ten tb']) : col(['ten']),
-      loai: col(['loai']), mon: col(['mon']), khoi: col(['khoi', 'lop su dung']), kho: col(['kho', 'phong', 'vi tri']),
+      loai: col(['loai']), mon: col(['mon']), khoi: col(['khoi', 'lop su dung'], ['kho/', 'kho ']), kho: col(['kho', 'phong', 'vi tri'], ['khoi']),
       soLuong: col(['so luong hien co', 'so luong con', 'hien co', 'con lai']) >= 0 ? col(['so luong hien co', 'so luong con', 'hien co', 'con lai']) : col(['so luong', 'sl']),
       donVi: col(['don vi', 'dvt']), ghiChu: col(['ghi chu'])
     };
