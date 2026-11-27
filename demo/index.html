@@ -716,8 +716,9 @@ var EX = (function () {
     document.getElementById('mnu').onclick = function () {
       modal('Tài khoản', '<p><b>' + esc(me.hoTen) + '</b><br><span class="mut">Tên đăng nhập: ' + esc(me.username) + '</span></p>' +
         '<p class="mut sm">Phiên bản ' + esc(S.boot.version) + '</p>',
-        '<button class="btn grow" id="mcp">Đổi mật khẩu</button><button class="btn warn grow" id="mlo">Đăng xuất</button>',
+        (has('GV') ? '<button class="btn pri grow" id="mpf">⚙️ Hồ sơ của tôi</button>' : '') + '<button class="btn grow" id="mcp">Đổi mật khẩu</button><button class="btn warn grow" id="mlo">Đăng xuất</button>',
         function (m, close) {
+          var pf = m.querySelector('#mpf'); if (pf) pf.onclick = function () { close(); profileModal(); };
           m.querySelector('#mcp').onclick = function () { close(); changePassModal(false); };
           m.querySelector('#mlo').onclick = async function () { close(); try { await api('logout', {}); } catch (e) { } logoutLocal(); viewLogin(); };
         });
@@ -737,6 +738,7 @@ var EX = (function () {
       indexCatalog();
       shell();
       if (j.me.doiMK) changePassModal(true);
+      else if (has('GV') && !j.me.monDay) profileModal(true);
     } catch (e) { viewLogin(e.message); }
   }
 
@@ -996,7 +998,7 @@ var EX = (function () {
       '<div class="row"><div class="grow"><label class="f">Buổi</label><select id="mb"><option>Sáng</option><option>Chiều</option></select></div>' +
       '<div class="grow"><label class="f">Tiết</label><select id="mt">' + [1, 2, 3, 4, 5].map(function (x) { return '<option>' + x + '</option>'; }).join('') + '</select></div></div>' +
       '<div class="row"><div class="grow"><label class="f">Lớp</label><input type="text" id="ml" placeholder="vd: 8C1"></div>' +
-      '<div class="grow"><label class="f">Môn</label><input type="text" id="mm" placeholder="vd: Tin học"></div></div>' +
+      '<div class="grow"><label class="f">Môn</label><input type="text" id="mm" list="mmlist" placeholder="vd: Tin học" value="' + esc(myMon()[0] || '') + '"><datalist id="mmlist">' + myMon().map(function (x) { return '<option value="' + esc(x) + '">'; }).join('') + '</datalist></div></div>' +
       '<label class="f">Tiết PPCT</label><input type="text" id="mp">' +
       '<label class="f">Tên bài dạy</label><input type="text" id="mn">' +
       '<label class="f">Điểm trường (kho mượn)</label><select id="ms">' + siteOpts(sites) + '</select>',
@@ -1099,10 +1101,13 @@ var EX = (function () {
           else if (flt === 'mon') {
             var sug = [], other = [];
             list.forEach(function (c) { if (!hit(c)) return; (monMatch(c.mon, r.mon) && khoiMatch(c.khoi, r.lop) ? sug : other).push(c); });
-            var fav = kw ? [] : (S.boot.hayDung || []).map(function (x) { return resolveAt(x.ten, x.ma, site); }).filter(Boolean);
+            var mine = kw ? [] : (S.boot.me.yeuThich || []).map(function (x) { return resolveAt(x.ten, x.ma, site); }).filter(Boolean);
+            var mineIds = {}; mine.forEach(function (c) { mineIds[c.id] = 1; });
+            var fav = kw ? [] : (S.boot.hayDung || []).map(function (x) { return resolveAt(x.ten, x.ma, site); }).filter(function (c) { return c && !mineIds[c.id]; });
+            if (mine.length) h += '<div class="sec">⭐ Thiết bị của tôi</div>' + mine.map(row).join('');
             var hint = kw ? [] : hintsFor(Object.assign({}, r, { site: site })).map(function (x) { return x.c; });
             if (hint.length) h += '<div class="sec">💡 Bài này thường dùng</div>' + hint.map(row).join('');
-            if (fav.length) h += '<div class="sec">⭐ Thầy/cô hay dùng</div>' + fav.map(row).join('');
+            if (fav.length) h += '<div class="sec">🕘 Hay dùng gần đây</div>' + fav.map(row).join('');
             h += '<div class="sec">Phù hợp ' + esc(r.mon) + ' – khối ' + esc(U.gradeOfClass(r.lop)) + ' (' + sug.length + ')</div>';
             h += sug.length ? sug.map(row).join('') : '<div class="mut sm" style="padding:8px 0">Không có thiết bị đúng môn. Gõ tên để tìm, hoặc bấm “Tất cả” / chọn tổ ở trên.</div>';
             if (kw) h += '<div class="sec">Thiết bị khác (' + other.length + ')</div>' + other.slice(0, 150).map(row).join('');
@@ -1154,6 +1159,112 @@ var EX = (function () {
     return (ma && list.filter(function (x) { return x.ma === ma; })[0]) || list.filter(function (x) { return U.key(x.ten) === U.key(ten); })[0] || null;
   }
   function rowSite(r) { return r.site || mySites()[0] || 'DC'; }
+
+  /* ----- Hồ sơ giáo viên ----- */
+  var MON_LIST = ['Ngữ văn', 'Toán', 'Tiếng Anh', 'Khoa học tự nhiên', 'Lịch sử và Địa lí', 'Giáo dục công dân', 'Tin học', 'Công nghệ',
+    'Giáo dục thể chất', 'Âm nhạc', 'Mĩ thuật', 'Hoạt động trải nghiệm, hướng nghiệp', 'Nội dung giáo dục địa phương'];
+  function myMon() { return String(S.boot.me.monDay || '').split(',').map(function (x) { return x.trim(); }).filter(Boolean); }
+
+  /** Chọn một thiết bị trong danh mục (lọc theo môn dạy), trả về qua cb(c) */
+  function chooseCatalog(title, cb, monsIn, sitesIn) {
+    var mons0 = monsIn || myMon();
+    var site = (sitesIn && sitesIn[0]) || mySites()[0] || 'DC', flt = mons0.length ? 'mymon' : 'all';
+    modal(title,
+      '<div class="row"><select id="cs" style="width:auto;flex:0 0 auto">' + siteOpts(['DC', 'PH1', 'PH2'], site) + '</select>' +
+      '<input type="text" id="cq" placeholder="🔍 Gõ tên thiết bị…" style="flex:1;width:auto"></div><div id="cf"></div><div id="cl"></div>', null,
+      function (el, close) {
+        var q = el.querySelector('#cq');
+        q.oninput = draw; el.querySelector('#cs').onchange = function () { site = this.value; draw(); };
+        draw();
+        function draw() {
+          var kw = U.key(q.value), mons = mons0;
+          var list = S.boot.catalog.filter(function (c) { return c.diemTruong === site; });
+          var fl = [['mymon', 'Môn tôi dạy'], ['all', 'Tất cả']].concat(catFilters(list, false).slice(1));
+          if (!mons.length) fl.shift();
+          el.querySelector('#cf').innerHTML = chipsHtml(fl, flt);
+          el.querySelectorAll('#cf [data-f]').forEach(function (b) { b.onclick = function () { flt = b.dataset.f; draw(); }; });
+          var show = list.filter(function (c) {
+            if (kw && U.key(c.ten + ' ' + c.ma + ' ' + c.mon).indexOf(kw) < 0) return false;
+            if (flt === 'mymon') return mons.some(function (m) { return monMatch(c.mon, m); });
+            return catPass(c, flt);
+          });
+          el.querySelector('#cl').innerHTML = '<div class="sec">' + show.length + ' thiết bị</div>' + show.slice(0, 200).map(function (c) {
+            return '<div class="item" data-c="' + c.id + '"><div class="grow"><div class="nm">' + esc(c.ten) + '</div><div class="mut sm">' + esc([c.loai, c.mon, c.kho].filter(Boolean).join(' · ')) + '</div></div><span class="chip">' + c.soLuong + '</span></div>';
+          }).join('');
+          el.querySelectorAll('#cl [data-c]').forEach(function (it) { it.onclick = function () { close(); cb(catById(it.dataset.c)); }; });
+        }
+      });
+  }
+
+  function profileModal(first) {
+    var me = S.boot.me;
+    var st = { to: me.to || '', sites: (me.diemTruong || '').split(',').filter(Boolean), mons: myMon(), fav: (me.yeuThich || []).slice() };
+    var isNV = has('NVTB') && !has('ADMIN');
+    var m = modal('⚙️ Hồ sơ của tôi', '<div id="pfb"></div>',
+      '<button class="btn grow" data-x>' + (first ? 'Để sau' : 'Hủy') + '</button><button class="btn pri grow" id="pfs">Lưu</button>',
+      function (el, close) {
+        draw();
+        el.querySelector('#pfs').onclick = async function () {
+          if (!st.sites.length) return toast('Chọn ít nhất một điểm trường', true);
+          if (!st.mons.length) return toast('Chọn ít nhất một môn dạy', true);
+          var j = await call('saveProfile', { profile: { to: st.to, diemTruong: st.sites.join(','), monDay: st.mons.join(','), yeuThich: st.fav } });
+          if (!j) return;
+          Object.assign(S.boot.me, j.me); close(); toast('Đã lưu hồ sơ'); shell();
+        };
+        function draw() {
+          var others = st.mons.filter(function (x) { return MON_LIST.indexOf(x) < 0; });
+          var h = (first ? '<div class="note">Thầy/cô khai báo một lần để app gợi ý thiết bị nhanh hơn. Có thể sửa lại bất cứ lúc nào ở menu ☰.</div>' : '') +
+            '<label class="f">Tổ</label><select id="pto"><option value="">—</option>' + S.boot.toList.map(function (x) { return '<option' + (x === st.to ? ' selected' : '') + '>' + esc(x) + '</option>'; }).join('') + '</select>' +
+            '<label class="f">Điểm trường dạy</label><div class="checks">' + ['DC', 'PH1', 'PH2'].map(function (k) {
+              return '<label><input type="checkbox" data-site="' + k + '"' + (st.sites.indexOf(k) >= 0 ? ' checked' : '') + (isNV ? ' disabled' : '') + '>' + esc(siteName(k)) + '</label>';
+            }).join('') + '</div>' +
+            '<label class="f">Môn dạy</label><div class="checks">' + MON_LIST.concat(others).map(function (x) {
+              return '<label><input type="checkbox" data-mon="' + esc(x) + '"' + (st.mons.indexOf(x) >= 0 ? ' checked' : '') + '>' + esc(x) + '</label>';
+            }).join('') + '</div>' +
+            '<label class="f">⭐ Thiết bị của tôi <span class="mut">(luôn hiện đầu danh sách khi mượn)</span></label>' +
+            (st.fav.length ? st.fav.map(function (x, i) { return '<div class="tb"><span class="grow">' + esc(x.ten) + '</span><button class="x" data-rf="' + i + '">×</button></div>'; }).join('') : '<p class="mut sm">Chưa có.</p>') +
+            '<button class="btn sm" id="paf">+ Thêm thiết bị</button>' +
+            '<label class="f">📌 Mượn cố định <span class="mut">(tự điền cho mọi tiết của môn)</span></label>' +
+            ((S.boot.rules || []).length ? S.boot.rules.map(function (x) { return '<div class="tb"><span class="grow">' + ruleLabel(x) + '</span><button class="x" data-rr="' + esc(x.id) + '">×</button></div>'; }).join('') : '<p class="mut sm">Chưa có.</p>') +
+            '<button class="btn sm" id="par">+ Thêm mượn cố định</button>';
+          el.querySelector('#pfb').innerHTML = h;
+          el.querySelector('#pto').onchange = function () { st.to = this.value; };
+          el.querySelectorAll('[data-site]').forEach(function (cb) { cb.onchange = function () { var k = cb.dataset.site; st.sites = st.sites.filter(function (x) { return x !== k; }); if (cb.checked) st.sites.push(k); }; });
+          el.querySelectorAll('[data-mon]').forEach(function (cb) { cb.onchange = function () { var k = cb.dataset.mon; st.mons = st.mons.filter(function (x) { return x !== k; }); if (cb.checked) st.mons.push(k); }; });
+          el.querySelectorAll('[data-rf]').forEach(function (b) { b.onclick = function () { st.fav.splice(+b.dataset.rf, 1); draw(); }; });
+          el.querySelector('#paf').onclick = function () {
+            chooseCatalog('Thêm vào “Thiết bị của tôi”', function (c) {
+              if (!st.fav.some(function (x) { return U.key(x.ten) === U.key(c.ten); })) st.fav.push({ ten: c.ten, ma: c.ma });
+              draw(); toast('Đã thêm ' + c.ten + ' (bấm Lưu để lưu lại)');
+            }, st.mons, st.sites);
+          };
+          el.querySelectorAll('[data-rr]').forEach(function (b) {
+            b.onclick = async function () { var j = await call('deleteRule', { id: b.dataset.rr }); if (j) { S.boot.rules = j.rules; draw(); } };
+          });
+          el.querySelector('#par').onclick = function () {
+            if (!st.mons.length) return toast('Chọn môn dạy trước', true);
+            chooseCatalog('Chọn thiết bị mượn cố định', function (c) { addRuleForm(c, st.mons, draw); }, st.mons, st.sites);
+          };
+        }
+      });
+    return m;
+  }
+
+  function addRuleForm(c, mons, after) {
+    modal('📌 Mượn cố định: ' + esc(c.ten),
+      '<label class="f">Cho môn</label><select id="rm">' + mons.map(function (x) { return '<option' + (monMatch(c.mon, x) ? ' selected' : '') + '>' + esc(x) + '</option>'; }).join('') + '</select>' +
+      '<label class="f">Khối</label><select id="rk"><option value="">Mọi khối</option><option>6</option><option>7</option><option>8</option><option>9</option></select>' +
+      '<label class="f">Số lượng mỗi tiết</label><input type="number" id="rs" value="1" min="1">' +
+      '<label class="f">Hình thức</label><select id="rh"><option' + (c.loai === 'Phòng học bộ môn' ? '' : ' selected') + '>Tại lớp</option><option' + (c.loai === 'Phòng học bộ môn' ? ' selected' : '') + '>Phòng thực hành</option></select>',
+      '<button class="btn grow" data-x>Hủy</button><button class="btn pri grow" id="rok">Lưu</button>',
+      function (m, close) {
+        m.querySelector('#rok').onclick = async function () {
+          var j = await call('saveRule', { rule: { mon: m.querySelector('#rm').value, khoi: m.querySelector('#rk').value, tenTB: c.ten, maTB: c.ma,
+            soLuong: Math.max(1, +m.querySelector('#rs').value || 1), hinhThuc: m.querySelector('#rh').value } });
+          if (j) { S.boot.rules = j.rules; close(); toast('Đã lưu mượn cố định'); after(); }
+        };
+      });
+  }
 
   /* ----- Gợi ý theo bài ----- */
   function hintKeys(r) {
