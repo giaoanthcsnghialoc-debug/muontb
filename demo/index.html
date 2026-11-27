@@ -468,7 +468,7 @@ var EX = (function () {
       var o = by[it.username] || (by[it.username] = { hoTen: it.hoTen, to: it.to, n: 0, tiet: {}, tra: 0, hong: 0 });
       o.n++; o.tiet[it.ngay + it.buoi + it.tiet] = 1;
       if (it.trangThai === 'DA_TRA') o.tra++;
-      if (it.tinhTrang && it.tinhTrang !== 'Bình thường') o.hong++;
+      if (it.tinhTrang && it.tinhTrang.indexOf('Bình thường') !== 0) o.hong++;
     });
     var list = Object.keys(by).map(function (k) { return by[k]; }).sort(function (a, b) { return a.to === b.to ? (a.hoTen < b.hoTen ? -1 : 1) : (a.to < b.to ? -1 : 1); });
     list.forEach(function (o, i) { w3.getRow(4 + i).values = [i + 1, o.hoTen, o.to, o.n, Object.keys(o.tiet).length, o.tra, o.hong]; });
@@ -645,6 +645,7 @@ var EX = (function () {
     var m = { CHO_GIAO: ['a', 'Chờ giao'], DA_GIAO: ['b', 'Đã giao'], DA_TRA: ['g', 'Đã trả'], TU_CHOI: ['r', 'Từ chối'] }[tt] || ['', tt];
     return '<span class="chip ' + m[0] + '">' + m[1] + '</span>';
   }
+  function okTT(t) { return !t || String(t).indexOf('Bình thường') === 0; }
   function catById(id) { return (S.catMap || {})[id]; }
   function indexCatalog() { S.catMap = {}; S.boot.catalog.forEach(function (c) { S.catMap[c.id] = c; }); }
 
@@ -756,7 +757,7 @@ var EX = (function () {
       if (!g.rows.some(function (r) { return r.key === k; })) {
         g.rows.push({ key: k, ngay: it.ngay, buoi: it.buoi, tiet: Number(it.tiet), lop: it.lop, mon: it.mon, ppct: it.tietPPCT, bai: it.tenBai, site: it.diemTruong, manual: true });
       }
-      (g.sel[k] = g.sel[k] || []).push({ catalogId: it.catalogId, soLuong: Number(it.soLuong), hinhThuc: it.hinhThuc, trangThai: it.trangThai, lyDo: it.lyDo, tenTB: it.tenTB, site: it.diemTruong });
+      (g.sel[k] = g.sel[k] || []).push({ id: it.id, catalogId: it.catalogId, soLuong: Number(it.soLuong), hinhThuc: it.hinhThuc, trangThai: it.trangThai, lyDo: it.lyDo, tenTB: it.tenTB, site: it.diemTruong });
     });
     sortRows(g.rows);
     S.gv = g;
@@ -786,6 +787,9 @@ var EX = (function () {
       '</div><button class="btn sm" id="wn">▶</button></div><div style="text-align:center;margin-top:8px">' + st +
       (g.dirty ? ' <span class="chip r">Chưa gửi thay đổi</span>' : '') + '</div></div>';
 
+    var retToday = [];
+    g.rows.forEach(function (r) { if (r.ngay === S.boot.today) (g.sel[r.key] || []).forEach(function (x) { if (canReturn(x, r)) retToday.push(x.id); }); });
+    if (retToday.length) h += '<div class="note row"><span class="grow">Hôm nay thầy/cô đang mượn <b>' + retToday.length + '</b> thiết bị. Dạy xong, trả đồ rồi bấm báo trả.</span><button class="btn sm pri" id="retall">↩ Báo trả tất cả</button></div>';
     h += '<div class="row" style="margin-bottom:12px"><button class="btn pri grow" id="up">📄 Tải lịch báo giảng lên</button>' +
       '<button class="btn grow" id="km">🚫 Tuần này không mượn</button></div>';
 
@@ -810,6 +814,7 @@ var EX = (function () {
           h += '<div class="tb' + (x.trangThai === 'TU_CHOI' ? ' rej' : lock ? ' lock' : '') + '"><span class="grow">' + esc(x.tenTB) + (x.catalogId ? '' : ' ✍️') + ' <b>×' + x.soLuong + '</b>' +
             '<span class="mut sm"> · ' + esc(x.hinhThuc) + '</span>' + (x.trangThai === 'TU_CHOI' && x.lyDo ? '<br><span class="sm">Lý do: ' + esc(x.lyDo) + '</span>' : '') + '</span>' +
             (x.trangThai ? chipStatus(x.trangThai) : '') +
+            (canReturn(x, r) ? '<button class="btn sm" data-ret="' + i + ':' + j + '">↩ Đã trả</button>' : '') +
             (!lock || x.trangThai === 'TU_CHOI' ? '<button class="x" data-rm="' + i + ':' + j + '" title="Bỏ">×</button>' : '') + '</div>';
         });
         h += '<button class="btn sm" data-add="' + i + '">+ Thiết bị</button></div>';
@@ -837,9 +842,36 @@ var EX = (function () {
         g.dirty = true; renderBao();
       };
     });
+    v.querySelectorAll('[data-ret]').forEach(function (b) {
+      b.onclick = function () { var p = b.dataset.ret.split(':'), x = g.sel[g.rows[+p[0]].key][+p[1]]; returnModal([x.id], x.tenTB + ' ×' + x.soLuong); };
+    });
+    var ra = v.querySelector('#retall'); if (ra) ra.onclick = function () { returnModal(retToday, retToday.length + ' thiết bị mượn hôm nay'); };
     var s = v.querySelector('#send'); if (s) s.onclick = sendWeek;
     var d1 = v.querySelector('#dl1'); if (d1) d1.onclick = dlLBG;
     var d2 = v.querySelector('#dl2'); if (d2) d2.onclick = dlPhieuGV;
+  }
+
+  function canReturn(x, r) {
+    return !!x.id && (x.trangThai === 'DA_GIAO' || (x.trangThai === 'CHO_GIAO' && r.ngay <= S.boot.today));
+  }
+  function returnModal(ids, label) {
+    if (S.gv.dirty) return toast('Bạn có thay đổi chưa gửi. Bấm Gửi trước, rồi mới báo trả.', true);
+    modal('Báo đã trả thiết bị', '<p><b>' + esc(label) + '</b></p>' +
+      '<label class="f">Tình trạng khi trả</label><div class="seg" id="rt"><button class="on">Bình thường</button><button>Hỏng</button><button>Thiếu</button></div>' +
+      '<label class="f">Ghi chú (nếu hỏng/thiếu)</label><input type="text" id="rg">',
+      '<button class="btn grow" data-x>Hủy</button><button class="btn pri grow" id="rok">Báo đã trả</button>',
+      function (m, close) {
+        var tt = 'Bình thường';
+        m.querySelectorAll('#rt button').forEach(function (b) { b.onclick = function () { tt = b.textContent; m.querySelectorAll('#rt button').forEach(function (x) { x.classList.toggle('on', x === b); }); }; });
+        m.querySelector('#rok').onclick = async function () {
+          var note = m.querySelector('#rg').value.trim();
+          if (tt !== 'Bình thường' && !note) return toast('Ghi rõ hỏng/thiếu gì vào ô ghi chú', true);
+          var j = await call('gvReturn', { ids: ids, tinhTrang: tt, lyDo: note });
+          if (!j) return;
+          close(); toast('Đã báo trả ' + j.changed + ' thiết bị');
+          await loadGV(S.gv.tuanBD); renderBao();
+        };
+      });
   }
 
   function switchWeek(t) {
@@ -1204,7 +1236,7 @@ var EX = (function () {
               return '<div class="li" data-it="' + it.id + '"><span class="grow"><b>T' + it.tiet + '</b> · ' + esc(it.lop) + ' · ' + esc(it.tenTB) + (it.catalogId ? '' : ' ✍️') + ' <b>×' + it.soLuong + '</b>' +
                 '<br><span class="mut sm">' + esc(it.gioDuKien) + ' · ' + esc(it.hinhThuc) + ' · ' + esc(it.mon) +
                 (it.gioGiao ? ' · giao ' + esc(it.gioGiao.slice(-5)) : '') + (it.gioTra ? ' · trả ' + esc(it.gioTra.slice(-5)) : '') +
-                (it.tinhTrang && it.tinhTrang !== 'Bình thường' ? ' · <b style="color:#c0392b">' + esc(it.tinhTrang) + '</b>' : '') + '</span></span>' + chipStatus(it.trangThai) + '</div>';
+                (!okTT(it.tinhTrang) ? ' · <b style="color:#c0392b">' + esc(it.tinhTrang) + '</b>' : (it.tinhTrang && it.tinhTrang !== 'Bình thường' ? ' · ' + esc(it.tinhTrang) : '')) + '</span></span>' + chipStatus(it.trangThai) + '</div>';
             }).join('') + '</div></div>';
         });
     });
@@ -1476,13 +1508,13 @@ var EX = (function () {
       var j = await load(); if (!j) return;
       var it = j.items;
       var n = { tong: it.length, tra: 0, chua: 0, cho: 0, tc: 0, hong: 0 };
-      it.forEach(function (x) { if (x.trangThai === 'DA_TRA') n.tra++; if (x.trangThai === 'DA_GIAO') n.chua++; if (x.trangThai === 'CHO_GIAO') n.cho++; if (x.trangThai === 'TU_CHOI') n.tc++; if (x.tinhTrang && x.tinhTrang !== 'Bình thường') n.hong++; });
+      it.forEach(function (x) { if (x.trangThai === 'DA_TRA') n.tra++; if (x.trangThai === 'DA_GIAO') n.chua++; if (x.trangThai === 'CHO_GIAO') n.cho++; if (x.trangThai === 'TU_CHOI') n.tc++; if (!okTT(x.tinhTrang)) n.hong++; });
       v.querySelector('#sr').innerHTML = '<div class="card"><div class="row" style="margin-bottom:8px"><span class="chip">' + n.tong + ' lượt</span><span class="chip g">' + n.tra + ' đã trả</span>' +
         '<span class="chip b">' + n.chua + ' chưa trả</span><span class="chip a">' + n.cho + ' chờ giao</span>' + (n.tc ? '<span class="chip r">' + n.tc + ' từ chối</span>' : '') + (n.hong ? '<span class="chip r">' + n.hong + ' hỏng/thiếu</span>' : '') + '</div>' +
         (it.length ? '<div class="tw"><table class="t"><tr><th>Ngày</th><th>Tiết</th><th>Giáo viên</th><th>Lớp</th><th>Thiết bị</th><th>Mượn</th><th>Trả</th><th></th></tr>' +
           it.slice(0, 300).map(function (x) {
             return '<tr><td>' + U.dm(x.ngay) + '</td><td>' + (x.buoi === 'Sáng' ? 'S' : 'C') + x.tiet + '</td><td>' + esc(x.hoTen) + '</td><td>' + esc(x.lop) + '</td><td>' + esc(x.tenTB) + ' ×' + x.soLuong +
-              '</td><td>' + esc(x.gioGiao) + '</td><td>' + esc(x.gioTra) + (x.tinhTrang && x.tinhTrang !== 'Bình thường' ? ' <b style="color:#c0392b">' + esc(x.tinhTrang) + '</b>' : '') + '</td><td>' + chipStatus(x.trangThai) + '</td></tr>';
+              '</td><td>' + esc(x.gioGiao) + '</td><td>' + esc(x.gioTra) + (!okTT(x.tinhTrang) ? ' <b style="color:#c0392b">' + esc(x.tinhTrang) + '</b>' : '') + '</td><td>' + chipStatus(x.trangThai) + '</td></tr>';
           }).join('') + '</table></div>' + (it.length > 300 ? '<p class="mut sm">Hiển thị 300 dòng đầu – xuất Excel để xem đủ.</p>' : '') : '<div class="empty">Không có dữ liệu.</div>') + '</div>';
     };
     v.querySelector('#se').onclick = async function () {
@@ -1513,7 +1545,7 @@ var EX = (function () {
       }).join('') + '</div>';
     var P = [['GIO_SANG', 'Giờ vào tiết 1 buổi sáng', 'time'], ['GIO_CHIEU', 'Giờ vào tiết 1 buổi chiều', 'time'], ['PHUT_TIET', 'Số phút mỗi tiết', 'number'],
       ['PHUT_NGHI', 'Nghỉ giữa các tiết (phút)', 'number'], ['RA_CHOI_SAU_TIET', 'Ra chơi sau tiết', 'number'], ['PHUT_RA_CHOI', 'Thời gian ra chơi (phút)', 'number'],
-      ['NGAY_TUAN1', 'Ngày bắt đầu Tuần 1 (thứ Hai)', 'date'], ['TEN_TRUONG', 'Tên trường (in trên phiếu)', 'text'], ['CAP_TREN', 'Cơ quan cấp trên (in trên phiếu)', 'text']];
+      ['GIO_TU_TRA', 'Giờ app tự ghi trả thiết bị chưa trả trong ngày', 'time'], ['NGAY_TUAN1', 'Ngày bắt đầu Tuần 1 (thứ Hai)', 'date'], ['TEN_TRUONG', 'Tên trường (in trên phiếu)', 'text'], ['CAP_TREN', 'Cơ quan cấp trên (in trên phiếu)', 'text']];
     h += '<div class="card"><h2>Cài đặt</h2>' + P.map(function (p) { return '<label class="f">' + p[1] + '</label><input type="' + p[2] + '" id="s_' + p[0] + '" value="' + esc(st[p[0]]) + '">'; }).join('') +
       '<div class="note" id="gp"></div><button class="btn pri" id="ssave">Lưu cài đặt</button></div>';
     v.innerHTML = h;
