@@ -802,8 +802,10 @@ var EX = (function () {
     }
     if (!g.rows.length) {
       h += '<div class="card empty">Tải lịch báo giảng (file xuất từ vnEdu) để chọn thiết bị cho từng tiết.<br><br>' +
-        'Tuần nào không dùng thiết bị, chỉ cần bấm <b>“Tuần này không mượn”</b>.<br><br>' +
-        '<button class="btn sm" id="man">+ Thêm tiết dạy thủ công</button></div>';
+        '<b>Chưa có lịch báo giảng?</b> Lấy thời khóa biểu của tuần trước để mượn trước, khi có lịch báo giảng thì tải lên sau.<br><br>' +
+        '<button class="btn pri sm" id="tkb">📅 Lấy thời khóa biểu tuần trước</button> ' +
+        '<button class="btn sm" id="man">+ Thêm tiết dạy thủ công</button><br><br>' +
+        '<span class="sm">Tuần nào không dùng thiết bị, chỉ cần bấm <b>“Tuần ' + weekNo(g.tuanBD) + ' không mượn”</b>.</span></div>';
     } else {
       var lastDay = '';
       g.rows.forEach(function (r, i) {
@@ -812,7 +814,7 @@ var EX = (function () {
         h += '<div class="lesson"><div class="hd"><span class="t">' + r.buoi + ' · Tiết ' + r.tiet + ' · ' + esc(r.lop) + '</span>' +
           '<span class="mut">' + esc(r.mon) + (r.ppct ? ' · PPCT ' + esc(r.ppct) : '') + '</span>' +
           (r.site ? '<span class="chip sm">' + esc(siteName(r.site)) + '</span>' : '') + '</div>' +
-          '<div class="bai">' + esc(r.bai || '') + '</div>';
+          '<div class="bai">' + (r.bai ? esc(r.bai) : '<i>Chưa có tên bài</i>') + (r.manual ? ' <button class="btn ghost sm" data-ed="' + i + '" title="Sửa tiết PPCT / tên bài">✏️</button>' : '') + '</div>';
         list.forEach(function (x, j) {
           var lock = x.trangThai && x.trangThai !== 'CHO_GIAO';
           h += '<div class="tb' + (x.trangThai === 'TU_CHOI' ? ' rej' : lock ? ' lock' : '') + '"><span class="grow">' + esc(x.tenTB) + (x.catalogId ? '' : ' ✍️') + ' <b>×' + x.soLuong + '</b>' +
@@ -838,6 +840,8 @@ var EX = (function () {
     v.querySelector('#km').onclick = noBorrow;
     var gn = v.querySelector('#gonext'); if (gn) gn.onclick = function () { switchWeek(U.addDays(g.tuanBD, 7)); };
     var man = v.querySelector('#man'); if (man) man.onclick = manualRow;
+    var tkb = v.querySelector('#tkb'); if (tkb) tkb.onclick = copyPrevTKB;
+    v.querySelectorAll('[data-ed]').forEach(function (b) { b.onclick = function () { editRow(g.rows[+b.dataset.ed]); }; });
     v.querySelectorAll('[data-add]').forEach(function (b) { b.onclick = function () { openPicker(g.rows[+b.dataset.add]); }; });
     v.querySelectorAll('[data-rm]').forEach(function (b) {
       b.onclick = function () {
@@ -908,6 +912,53 @@ var EX = (function () {
     };
     if (S.gv.dirty && p.meta.tuanBD !== S.gv.tuanBD) confirmBox('Bạn có thay đổi chưa gửi ở tuần đang xem. Mở tuần trong lịch báo giảng mới?', 'Mở', apply, true);
     else apply();
+  }
+
+  /** Lấy thời khóa biểu (thứ, buổi, tiết, lớp, môn) của tuần trước làm khung để mượn trước */
+  async function copyPrevTKB() {
+    var g = S.gv, src = [], back = 0;
+    for (var k = 1; k <= 4 && !src.length; k++) {
+      var j = await call('myWeek', { tuanBD: U.addDays(g.tuanBD, -7 * k) });
+      if (!j) return;
+      if (j.lbg) { try { src = U.parseLBG(j.lbg).rows.filter(function (r) { return r.day; }); } catch (e) { src = []; } }
+      if (!src.length) src = (j.items || []).map(function (it) { return { ngay: it.ngay, buoi: it.buoi, tiet: Number(it.tiet), lop: it.lop, mon: it.mon, site: it.diemTruong }; });
+      back = k;
+    }
+    if (!src.length) return toast('4 tuần trước chưa có lịch báo giảng nào trên app. Hãy thêm tiết thủ công.', true);
+    var seen = {};
+    g.rows.forEach(function (r) { seen[r.key] = 1; });
+    var n = 0;
+    src.forEach(function (r) {
+      var x = { ngay: U.addDays(r.ngay, 7 * back), buoi: r.buoi, tiet: r.tiet, lop: r.lop, mon: r.mon, ppct: '', bai: '', site: r.site || U.siteOfClass(r.lop), manual: true };
+      x.key = U.rowKey(x);
+      if (seen[x.key]) return;
+      seen[x.key] = 1; g.rows.push(x); n++;
+    });
+    sortRows(g.rows);
+    toast('Đã lấy ' + n + ' tiết theo thời khóa biểu tuần trước. Bấm ✏️ để ghi tên bài nếu muốn.');
+    renderBao();
+  }
+
+  function editRow(r) {
+    modal('Sửa tiết ' + esc(r.lop) + ' · ' + U.thu(r.ngay) + ' ' + r.buoi + ' tiết ' + r.tiet,
+      '<label class="f">Môn</label><input type="text" id="em" value="' + esc(r.mon) + '">' +
+      '<label class="f">Tiết PPCT</label><input type="text" id="ep" value="' + esc(r.ppct || '') + '">' +
+      '<label class="f">Tên bài dạy</label><input type="text" id="eb" value="' + esc(r.bai || '') + '">' +
+      '<p class="mut sm">Ghi tên bài giống nhau cho các lớp dạy cùng bài để app tự điền thiết bị đồng loạt.</p>',
+      '<button class="btn warn" id="edel">Xóa tiết</button><button class="btn grow" data-x>Hủy</button><button class="btn pri grow" id="eok">Lưu</button>',
+      function (m, close) {
+        m.querySelector('#eok').onclick = function () {
+          r.mon = m.querySelector('#em').value.trim() || r.mon; r.ppct = m.querySelector('#ep').value.trim(); r.bai = m.querySelector('#eb').value.trim();
+          S.gv.dirty = true; close(); renderBao();
+        };
+        m.querySelector('#edel').onclick = function () {
+          var list = S.gv.sel[r.key] || [];
+          if (list.some(function (x) { return x.trangThai && x.trangThai !== 'CHO_GIAO'; })) return toast('Tiết này đã có thiết bị được giao, không xóa được.', true);
+          delete S.gv.sel[r.key];
+          S.gv.rows = S.gv.rows.filter(function (x) { return x !== r; });
+          S.gv.dirty = true; close(); renderBao();
+        };
+      });
   }
 
   function manualRow() {
@@ -1146,7 +1197,7 @@ var EX = (function () {
     var n = collectItems().length;
     confirmBox('Báo tuần ' + weekNo(g.tuanBD) + ' (' + U.dm(g.tuanBD) + ' – ' + U.dm(U.addDays(g.tuanBD, 6)) + ') KHÔNG MƯỢN thiết bị?' +
       (n ? '\n\nCác thiết bị đã chọn của tuần này sẽ bị bỏ.' : ''), 'Gửi: không mượn', async function () {
-        var j = await call('noBorrow', { tuanBD: g.tuanBD, soTuan: weekNo(g.tuanBD) });
+        var j = await call('noBorrow', { tuanBD: g.tuanBD, soTuan: weekNo(g.tuanBD), lbg: g.parsed ? g.parsed.grid : null });
         if (!j) return;
         toast(j.message);
         await loadGV(g.tuanBD);
