@@ -104,6 +104,7 @@ table.t th{color:var(--mut);font-weight:700;font-size:12.5px}
 .fchips::-webkit-scrollbar{display:none}
 .fchip{flex:0 0 auto;border:1px solid var(--line);background:#fff;border-radius:18px;padding:6px 12px;font-size:13.5px;font-weight:600;color:var(--mut);cursor:pointer;white-space:nowrap}
 .fchip.on{background:var(--g);border-color:var(--g);color:#fff}
+.hint{background:#fffbea;border:1px dashed #e8d48a;border-radius:9px;padding:6px 10px;margin:5px 0;font-size:13.5px}
 
 </style>
 <script>
@@ -749,6 +750,7 @@ var EX = (function () {
     var j = await call('myWeek', { tuanBD: tuanBD });
     if (!j) return;
     var g = { tuanBD: tuanBD, week: j.week, usage: j.usage || {}, parsed: null, rows: [], sel: {}, dirty: false };
+    if (j.hayDung) S.boot.hayDung = j.hayDung;
     if (j.lbg) { try { g.parsed = U.parseLBG(j.lbg); } catch (e) { g.parsed = null; } }
     if (keep && keep.parsed) { g.parsed = keep.parsed; g.dirty = true; }
     if (g.parsed) g.rows = g.parsed.rows.filter(function (r) { return r.day; }).map(function (r) { return Object.assign({}, r); });
@@ -761,6 +763,7 @@ var EX = (function () {
     });
     sortRows(g.rows);
     S.gv = g;
+    await fetchHints();
   }
   function sortRows(rows) {
     rows.sort(function (a, b) {
@@ -794,6 +797,8 @@ var EX = (function () {
     if (g.tuanBD === U.monday(S.boot.today) && (wd === 5 || wd === 6 || wd === 0)) {
       h += '<div class="note row"><span class="grow">Đang xem <b>tuần ' + weekNo(g.tuanBD) + '</b> (tuần hiện tại). Báo mượn cho tuần sau?</span><button class="btn sm pri" id="gonext">Sang tuần ' + (weekNo(g.tuanBD) + 1) + ' ▶</button></div>';
     }
+    var nr = (S.boot.rules || []).length;
+    h += '<div style="margin:-4px 0 10px"><button class="btn sm" id="rules">📌 Mượn cố định' + (nr ? ' (' + nr + ')' : '') + '</button></div>';
     h += '<div class="row" style="margin-bottom:12px"><button class="btn pri grow" id="up">📄 Tải lịch báo giảng lên</button>' +
       '<button class="btn grow" id="km">🚫 Tuần ' + weekNo(g.tuanBD) + ' không mượn</button></div>';
 
@@ -823,6 +828,11 @@ var EX = (function () {
             (canReturn(x, r) ? '<button class="btn sm" data-ret="' + i + ':' + j + '">↩ Đã trả</button>' : '') +
             (!lock || x.trangThai === 'TU_CHOI' ? '<button class="x" data-rm="' + i + ':' + j + '" title="Bỏ">×</button>' : '') + '</div>';
         });
+        if (!list.length) {
+          var hs = hintsFor(r);
+          if (hs.length) h += '<div class="hint">💡 Bài này thường dùng: ' + hs.map(function (x) { return esc(x.c.ten) + ' ×' + x.soLuong; }).join(', ') +
+            ' <button class="btn sm" data-hint="' + i + '">Mượn giống vậy</button></div>';
+        }
         h += '<button class="btn sm" data-add="' + i + '">+ Thiết bị</button></div>';
       });
       h += '<div style="margin-top:10px"><button class="btn sm" id="man">+ Thêm tiết dạy thủ công</button></div>';
@@ -841,6 +851,19 @@ var EX = (function () {
     var gn = v.querySelector('#gonext'); if (gn) gn.onclick = function () { switchWeek(U.addDays(g.tuanBD, 7)); };
     var man = v.querySelector('#man'); if (man) man.onclick = manualRow;
     var tkb = v.querySelector('#tkb'); if (tkb) tkb.onclick = copyPrevTKB;
+    v.querySelector('#rules').onclick = rulesModal;
+    v.querySelectorAll('[data-hint]').forEach(function (b) {
+      b.onclick = function () {
+        var r = g.rows[+b.dataset.hint], n = 0, miss = [];
+        hintsFor(r).forEach(function (x) {
+          var a = availFor(x.c, r);
+          if (a < 1) { miss.push(x.c.ten); return; }
+          addSel(r, x.c, Math.min(x.soLuong, a), x.c.loai === 'Phòng học bộ môn' ? 'Phòng thực hành' : 'Tại lớp', null); n++;
+        });
+        g.dirty = true; renderBao();
+        toast('Đã thêm ' + n + ' thiết bị' + (miss.length ? '. Hết: ' + miss.join(', ') : ''));
+      };
+    });
     v.querySelectorAll('[data-ed]').forEach(function (b) { b.onclick = function () { editRow(g.rows[+b.dataset.ed]); }; });
     v.querySelectorAll('[data-add]').forEach(function (b) { b.onclick = function () { openPicker(g.rows[+b.dataset.add]); }; });
     v.querySelectorAll('[data-rm]').forEach(function (b) {
@@ -907,7 +930,9 @@ var EX = (function () {
       // gán điểm trường cho các tiết có lớp không rõ điểm
       var sites = (S.boot.me.diemTruong || '').split(',').filter(Boolean);
       S.gv.rows.forEach(function (r) { if (!r.site && sites.length === 1) r.site = sites[0]; });
-      toast('Đã đọc ' + teach.length + ' tiết dạy – tuần ' + (p.meta.tuan || weekNo(p.meta.tuanBD)));
+      var ar = applyRules(S.gv.rows);
+      await fetchHints();
+      toast('Đã đọc ' + teach.length + ' tiết dạy – tuần ' + (p.meta.tuan || weekNo(p.meta.tuanBD)) + ruleMsg(ar));
       renderBao();
     };
     if (S.gv.dirty && p.meta.tuanBD !== S.gv.tuanBD) confirmBox('Bạn có thay đổi chưa gửi ở tuần đang xem. Mở tuần trong lịch báo giảng mới?', 'Mở', apply, true);
@@ -935,7 +960,9 @@ var EX = (function () {
       seen[x.key] = 1; g.rows.push(x); n++;
     });
     sortRows(g.rows);
-    toast('Đã lấy ' + n + ' tiết từ lịch báo giảng tuần ' + (weekNo(g.tuanBD) - back) + '. Bấm ✏️ để ghi tên bài nếu muốn.');
+    var ar = applyRules(g.rows);
+    await fetchHints();
+    toast('Đã lấy ' + n + ' tiết từ lịch báo giảng tuần ' + (weekNo(g.tuanBD) - back) + '.' + ruleMsg(ar));
     renderBao();
   }
 
@@ -949,7 +976,7 @@ var EX = (function () {
       function (m, close) {
         m.querySelector('#eok').onclick = function () {
           r.mon = m.querySelector('#em').value.trim() || r.mon; r.ppct = m.querySelector('#ep').value.trim(); r.bai = m.querySelector('#eb').value.trim();
-          S.gv.dirty = true; close(); renderBao();
+          S.gv.dirty = true; close(); fetchHints().then(renderBao);
         };
         m.querySelector('#edel').onclick = function () {
           var list = S.gv.sel[r.key] || [];
@@ -983,7 +1010,13 @@ var EX = (function () {
           if (!r.lop || !r.mon) return toast('Nhập lớp và môn', true);
           r.key = U.rowKey(r);
           if (g.rows.some(function (x) { return x.key === r.key; })) return toast('Tiết này đã có trong danh sách', true);
-          g.rows.push(r); sortRows(g.rows); close(); renderBao(); openPicker(r);
+          g.rows.push(r); sortRows(g.rows); close();
+          var ar = applyRules([r]);
+          fetchHints().then(function () {
+            if (ar.added) { toast('Đã tự điền ' + ar.added + ' thiết bị theo mượn cố định'); renderBao(); }
+            else if (hintsFor(r).length) renderBao();
+            else { renderBao(); openPicker(r); }
+          });
         };
       });
   }
@@ -1066,6 +1099,10 @@ var EX = (function () {
           else if (flt === 'mon') {
             var sug = [], other = [];
             list.forEach(function (c) { if (!hit(c)) return; (monMatch(c.mon, r.mon) && khoiMatch(c.khoi, r.lop) ? sug : other).push(c); });
+            var fav = kw ? [] : (S.boot.hayDung || []).map(function (x) { return resolveAt(x.ten, x.ma, site); }).filter(Boolean);
+            var hint = kw ? [] : hintsFor(Object.assign({}, r, { site: site })).map(function (x) { return x.c; });
+            if (hint.length) h += '<div class="sec">💡 Bài này thường dùng</div>' + hint.map(row).join('');
+            if (fav.length) h += '<div class="sec">⭐ Thầy/cô hay dùng</div>' + fav.map(row).join('');
             h += '<div class="sec">Phù hợp ' + esc(r.mon) + ' – khối ' + esc(U.gradeOfClass(r.lop)) + ' (' + sug.length + ')</div>';
             h += sug.length ? sug.map(row).join('') : '<div class="mut sm" style="padding:8px 0">Không có thiết bị đúng môn. Gõ tên để tìm, hoặc bấm “Tất cả” / chọn tổ ở trên.</div>';
             if (kw) h += '<div class="sec">Thiết bị khác (' + other.length + ')</div>' + other.slice(0, 150).map(row).join('');
@@ -1111,6 +1148,91 @@ var EX = (function () {
     if (ex) ex.soLuong += sl; else list.push({ catalogId: id, soLuong: sl, hinhThuc: ht, tenTB: ten, site: c ? c.diemTruong : site.site });
   }
 
+  /** Tìm thiết bị (theo mã hoặc tên) trong kho của một điểm trường */
+  function resolveAt(ten, ma, site) {
+    var list = S.boot.catalog.filter(function (x) { return x.diemTruong === site; });
+    return (ma && list.filter(function (x) { return x.ma === ma; })[0]) || list.filter(function (x) { return U.key(x.ten) === U.key(ten); })[0] || null;
+  }
+  function rowSite(r) { return r.site || mySites()[0] || 'DC'; }
+
+  /* ----- Gợi ý theo bài ----- */
+  function hintKeys(r) {
+    var base = U.key(r.mon) + '|' + U.gradeOfClass(r.lop) + '|', ks = [];
+    if (r.ppct) ks.push(base + 'p' + String(r.ppct).trim());
+    var nb = normBai(r.bai); if (nb) ks.push(base + 'b' + nb);
+    return ks;
+  }
+  async function fetchHints() {
+    var g = S.gv; if (!g) return;
+    var keys = {};
+    g.rows.forEach(function (r) { hintKeys(r).forEach(function (k) { keys[k] = 1; }); });
+    var list = Object.keys(keys);
+    g.hints = {};
+    if (!list.length) return;
+    try { var j = await api('hints', { keys: list }, true); if (j.ok) g.hints = j.hints || {}; } catch (e) { }
+  }
+  function hintsFor(r) {
+    var g = S.gv, seen = {}, out = [], site = rowSite(r);
+    hintKeys(r).forEach(function (k) {
+      ((g.hints || {})[k] || []).forEach(function (h) {
+        var c = resolveAt(h.ten, h.ma, site);
+        if (!c || seen[c.id]) return;
+        seen[c.id] = 1; out.push({ c: c, soLuong: h.soLuong, n: h.n });
+      });
+    });
+    return out.slice(0, 5);
+  }
+
+  /* ----- Mượn cố định ----- */
+  function ruleMatch(rule, r) {
+    return U.key(rule.mon) === U.key(r.mon) && (!rule.khoi || String(rule.khoi) === U.gradeOfClass(r.lop));
+  }
+  /** Tự điền thiết bị theo các quy tắc mượn cố định; bỏ qua tiết đã có thiết bị đó */
+  function applyRules(rows) {
+    var rules = S.boot.rules || [], g = S.gv, res = { added: 0, miss: [] };
+    if (!rules.length) return res;
+    rows.forEach(function (r) {
+      rules.forEach(function (rule) {
+        if (!ruleMatch(rule, r)) return;
+        var c = resolveAt(rule.tenTB, rule.maTB, rowSite(r));
+        if (!c) { res.miss.push(rule.tenTB + ' (kho ' + siteName(rowSite(r)) + ' không có)'); return; }
+        var list = g.sel[r.key] || [];
+        if (list.some(function (x) { return x.catalogId === c.id; })) return;
+        var a = availFor(c, r);
+        if (a < 1) { res.miss.push(c.ten + ' – ' + r.lop + ' ' + U.dm(r.ngay) + ' tiết ' + r.tiet + ' (hết)'); return; }
+        addSel(r, c, Math.min(rule.soLuong || 1, a), rule.hinhThuc || 'Tại lớp', null);
+        res.added++;
+      });
+    });
+    if (res.added) g.dirty = true;
+    return res;
+  }
+  function ruleMsg(ar) {
+    if (!ar.added && !ar.miss.length) return '';
+    var uniq = ar.miss.filter(function (x, i) { return ar.miss.indexOf(x) === i; });
+    return (ar.added ? '\nĐã tự điền ' + ar.added + ' thiết bị theo mượn cố định.' : '') + (uniq.length ? '\nKhông điền được: ' + uniq.slice(0, 4).join('; ') : '');
+  }
+  function ruleLabel(x) { return esc(x.mon) + (x.khoi ? ' khối ' + esc(x.khoi) : ' (mọi khối)') + ' → <b>' + esc(x.tenTB) + '</b> ×' + x.soLuong; }
+  function rulesModal() {
+    var rules = S.boot.rules || [];
+    modal('📌 Mượn cố định',
+      '<p class="mut sm" style="margin-top:0">Thiết bị dùng thường xuyên cho một môn (ví dụ Tin học → Phòng thực hành Tin học; Toán → thước, compa, ê ke). ' +
+      'Mỗi khi tải lịch báo giảng hoặc lấy lịch tuần trước, app tự điền sẵn cho các tiết của môn đó.</p>' +
+      (rules.length ? rules.map(function (x) { return '<div class="item" style="cursor:default"><div class="grow">' + ruleLabel(x) + '</div><button class="btn sm warn" data-del="' + esc(x.id) + '">Xóa</button></div>'; }).join('')
+        : '<div class="empty">Chưa có. Để thêm: bấm “+ Thiết bị” ở một tiết, chọn thiết bị, rồi tích ô <b>📌 Mượn cố định</b>.</div>'),
+      (rules.length && S.gv && S.gv.rows.length ? '<button class="btn pri grow" id="rapply">Áp dụng cho tuần ' + weekNo(S.gv.tuanBD) + '</button>' : '') + '<button class="btn grow" data-x>Đóng</button>',
+      function (m, close) {
+        m.querySelectorAll('[data-del]').forEach(function (b) {
+          b.onclick = async function () {
+            var j = await call('deleteRule', { id: b.dataset.del });
+            if (j) { S.boot.rules = j.rules; close(); rulesModal(); renderBao(); }
+          };
+        });
+        var ap = m.querySelector('#rapply');
+        if (ap) ap.onclick = function () { var ar = applyRules(S.gv.rows); close(); renderBao(); toast(ar.added || ar.miss.length ? ruleMsg(ar).trim() : 'Các tiết đã có đủ thiết bị mượn cố định.'); };
+      });
+  }
+
   /** Thiết bị tương ứng ở kho của điểm trường khác (cùng mã hoặc cùng tên) */
   function twinAt(c, site) {
     if (!c || c.diemTruong === site) return c;
@@ -1141,7 +1263,11 @@ var EX = (function () {
       '<div class="mut sm">' + (c ? esc([c.ma, c.loai, c.kho, siteName(c.diemTruong)].filter(Boolean).join(' · ')) : '✍️ Ghi tay – không có trong danh mục, nhân viên thiết bị sẽ tự kiểm tra') + '</div>' +
       '<label class="f">Số lượng' + (c ? ' (còn ' + max + ' ' + esc(c.donVi || '') + ')' : '') + '</label>' +
       '<div class="stepper"><button id="sm">−</button><input type="number" id="sv" value="1" min="1" max="' + max + '"><button id="sp">+</button></div>' +
-      '<label class="f">Hình thức sử dụng</label><div class="seg"><button data-h="Tại lớp">Tại lớp</button><button data-h="Phòng thực hành">Phòng thực hành</button></div>' + sameHtml,
+      '<label class="f">Hình thức sử dụng</label><div class="seg"><button data-h="Tại lớp">Tại lớp</button><button data-h="Phòng thực hành">Phòng thực hành</button></div>' + sameHtml +
+      (c && has('GV') ? '<label class="f">📌 Mượn cố định</label><div class="checks" style="display:flex;flex-direction:column;gap:2px">' +
+        '<label><input type="checkbox" id="pin"> Luôn tự điền thiết bị này cho mọi tiết <b>' + esc(r.mon) + '</b></label>' +
+        '<label style="margin-left:22px"><input type="radio" name="pk" value="" checked> mọi khối</label>' +
+        '<label style="margin-left:22px"><input type="radio" name="pk" value="' + esc(U.gradeOfClass(r.lop)) + '"> chỉ khối ' + esc(U.gradeOfClass(r.lop)) + '</label></div>' : ''),
       '<button class="btn grow" data-x>Hủy</button><button class="btn pri grow" id="cok">Thêm vào tiết</button>',
       function (m, close) {
         var sv = m.querySelector('#sv');
@@ -1150,7 +1276,7 @@ var EX = (function () {
         m.querySelectorAll('[data-h]').forEach(function (b) { b.onclick = function () { ht = b.dataset.h; setH(); }; });
         m.querySelector('#sm').onclick = function () { sv.value = Math.max(1, (+sv.value || 1) - 1); };
         m.querySelector('#sp').onclick = function () { sv.value = Math.min(max, (+sv.value || 0) + 1); };
-        m.querySelector('#cok').onclick = function () {
+        m.querySelector('#cok').onclick = async function () {
           sl = Math.floor(+sv.value || 1);
           if (sl < 1 || sl > max) return toast('Số lượng phải từ 1 đến ' + max, true);
           var done = 1, skipped = [];
@@ -1164,8 +1290,15 @@ var EX = (function () {
             } else addSel(o.row, null, sl, ht, { ten: custom.ten, site: o.site });
             done++;
           });
-          S.gv.dirty = true; close(); closePicker(); renderBao();
-          toast('Đã thêm cho ' + done + ' tiết' + (skipped.length ? '. Hết thiết bị ở: ' + skipped.join(', ') : ''));
+          var pin = m.querySelector('#pin');
+          var msg = 'Đã thêm cho ' + done + ' tiết' + (skipped.length ? '. Hết thiết bị ở: ' + skipped.join(', ') : '');
+          S.gv.dirty = true; close(); closePicker();
+          if (pin && pin.checked) {
+            var kh = (m.querySelector('[name=pk]:checked') || {}).value || '';
+            var j = await call('saveRule', { rule: { mon: r.mon, khoi: kh, tenTB: c.ten, maTB: c.ma, soLuong: sl, hinhThuc: ht } });
+            if (j) { S.boot.rules = j.rules; var ar = applyRules(S.gv.rows); msg += '\n📌 Đã lưu mượn cố định' + (ar.added ? ', tự điền thêm ' + ar.added + ' tiết trong tuần.' : '.'); }
+          }
+          renderBao(); toast(msg);
         };
       });
   }
