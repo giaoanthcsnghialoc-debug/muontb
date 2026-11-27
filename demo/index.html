@@ -531,17 +531,16 @@ var EX = (function () {
   function buildMauGV() {
     var wb = new ExcelJS.Workbook();
     var ws = wb.addWorksheet('Danh sách');
-    ws.getRow(1).values = ['STT', 'Họ và tên', 'Tổ', 'Điểm trường dạy', 'Vai trò'];
-    ws.getRow(2).values = [1, 'Đặng Cao Cường', 'KHXH', 'PH1, PH2', 'GV, ADMIN'];
-    ws.getRow(3).values = [2, 'Nguyễn Thị A', 'KHTN', 'DC', 'GV'];
-    ws.getRow(4).values = [3, 'Trần Thị B', '', 'PH1', 'NVTB'];
-    [5, 28, 14, 20, 16].forEach(function (w, i) { ws.getColumn(i + 1).width = w; });
-    ws.getCell('G1').value = 'Tổ: KHTN / KHXH / Năng khiếu';
-    ws.getCell('G2').value = 'Điểm trường: DC (Điểm chính), PH1, PH2 – dạy nhiều điểm thì ghi cách nhau dấu phẩy';
-    ws.getCell('G3').value = 'Vai trò: GV (giáo viên), NVTB (nhân viên thiết bị), ADMIN (quản trị)';
+    ws.getRow(1).values = ['STT', 'Họ và tên'];
+    ['Đặng Cao Cường', 'Nguyễn Thị A', 'Trần Văn B'].forEach(function (n, i) { ws.getRow(i + 2).values = [i + 1, n]; });
+    ws.getColumn(1).width = 6; ws.getColumn(2).width = 32;
+    ws.getCell('D1').value = 'Chỉ cần điền Họ và tên (có dấu), mỗi người một dòng. Có thể dán cả danh sách giáo viên, nhân viên.';
+    ws.getCell('D2').value = 'Vai trò, tổ, điểm trường, môn dạy: mỗi người tự chọn khi đăng nhập lần đầu.';
+    ws.getCell('D3').value = 'Tên đăng nhập = họ tên viết liền không dấu (vd: dangcaocuong), mật khẩu ban đầu 123456.';
     fontAll(ws, 12);
-    box(ws, 1, 4, 1, 5);
+    box(ws, 1, 4, 1, 2);
     ws.getRow(1).font = { name: FONT, bold: true };
+    ws.getCell('D1').font = ws.getCell('D2').font = ws.getCell('D3').font = { name: FONT, italic: true, color: { argb: 'FF666666' } };
     return wb;
   }
 
@@ -710,19 +709,20 @@ var EX = (function () {
     document.getElementById('lp').onkeydown = function (e) { if (e.key === 'Enter') go(); };
   }
 
-  function changePassModal(forced) {
+  function changePassModal(forced, then) {
     modal(forced ? 'Đổi mật khẩu lần đầu' : 'Đổi mật khẩu',
       (forced ? '<div class="note">Bạn đang dùng mật khẩu mặc định. Vui lòng đổi mật khẩu mới (ít nhất 6 ký tự).</div>' : '') +
       '<label class="f">Mật khẩu hiện tại</label><input type="password" id="op">' +
       '<label class="f">Mật khẩu mới</label><input type="password" id="np">' +
       '<label class="f">Nhập lại mật khẩu mới</label><input type="password" id="np2">',
-      '<button class="btn grow" data-x>' + (forced ? 'Để sau' : 'Hủy') + '</button><button class="btn pri grow" id="cp">Lưu</button>',
+      '<button class="btn grow" id="cpx">' + (forced ? 'Để sau' : 'Hủy') + '</button><button class="btn pri grow" id="cp">Lưu</button>',
       function (m, close) {
+        m.querySelector('#cpx').onclick = function () { close(); if (then) then(); };
         m.querySelector('#cp').onclick = async function () {
           var a = m.querySelector('#np').value, b = m.querySelector('#np2').value;
           if (a !== b) return toast('Hai lần nhập mật khẩu mới không khớp', true);
           var j = await call('changePass', { oldPass: m.querySelector('#op').value, newPass: a });
-          if (j) { S.boot.me.doiMK = false; close(); toast('Đã đổi mật khẩu'); }
+          if (j) { S.boot.me.doiMK = false; close(); toast('Đã đổi mật khẩu'); if (then) then(); }
         };
       });
   }
@@ -771,8 +771,9 @@ var EX = (function () {
       S.boot = j;
       indexCatalog();
       shell();
-      if (j.me.doiMK) changePassModal(true);
-      else if (has('GV') && !j.me.monDay) profileModal(true);
+      var setup = function () { if (!S.boot.me.hsXong && !has('ADMIN')) setupModal(); };
+      if (j.me.doiMK) changePassModal(true, setup);
+      else setup();
     } catch (e) { viewLogin(e.message); }
   }
 
@@ -1363,6 +1364,61 @@ var EX = (function () {
             return '<div class="item" data-c="' + c.id + '"><div class="grow"><div class="nm">' + esc(c.ten) + '</div><div class="mut sm">' + esc([c.loai, c.mon, c.kho].filter(Boolean).join(' · ')) + '</div></div><span class="chip">' + c.soLuong + '</span></div>';
           }).join('');
           el.querySelectorAll('#cl [data-c]').forEach(function (it) { it.onclick = function () { close(); cb(catById(it.dataset.c)); }; });
+        }
+      });
+  }
+
+  /* ----- Thiết lập tài khoản lần đầu: tự chọn vai trò, tổ, điểm trường, môn ----- */
+  function setupModal() {
+    var me = S.boot.me;
+    var st = { role: 'GV', to: me.to || '', sites: (me.diemTruong || '').split(',').filter(Boolean), mons: myMon(), nv: '' };
+    modal('👋 Thiết lập tài khoản', '<div id="sub"></div>', '<button class="btn pri grow" id="sus">Lưu và bắt đầu</button>',
+      function (el, close) {
+        var xb = el.querySelector('.sh [data-x]'); if (xb) xb.remove();
+        el.addEventListener('click', function (e) { if (e.target === el) e.stopImmediatePropagation(); }, true);
+        draw();
+        el.querySelector('#sus').onclick = async function () {
+          var p;
+          if (st.role === 'NVTB') {
+            if (!st.nv) return toast('Chọn điểm trường phụ trách', true);
+            p = { vaiTro: 'NVTB', diemTruong: st.nv };
+          } else {
+            if (!st.to) return toast('Chọn tổ chuyên môn', true);
+            if (!st.sites.length) return toast('Chọn ít nhất một điểm trường', true);
+            if (!st.mons.length) return toast('Chọn ít nhất một môn dạy', true);
+            p = { vaiTro: 'GV', to: st.to, diemTruong: st.sites.join(','), monDay: st.mons.join(',') };
+          }
+          var j = await call('saveProfile', { profile: p });
+          if (!j) return;
+          close(); toast('Đã lưu. Có thể sửa lại ở menu ☰'); S.tab = null; start();
+        };
+        function draw() {
+          var gv = st.role === 'GV';
+          var h = '<div class="note">Xin chào <b>' + esc(me.hoTen) + '</b>! Thầy/cô chọn thông tin của mình (làm một lần).</div>' +
+            '<label class="f">Vai trò</label><div class="checks">' +
+            '<label><input type="radio" name="sr" value="GV"' + (gv ? ' checked' : '') + '>Giáo viên</label>' +
+            '<label><input type="radio" name="sr" value="NVTB"' + (!gv ? ' checked' : '') + '>Nhân viên thiết bị</label></div>';
+          if (gv) {
+            h += '<label class="f">Tổ chuyên môn</label><div class="checks">' + S.boot.toList.map(function (t) {
+                return '<label><input type="radio" name="st" value="' + esc(t) + '"' + (t === st.to ? ' checked' : '') + '>' + esc(t) + '</label>';
+              }).join('') + '</div>' +
+              '<label class="f">Điểm trường dạy <span class="mut">(chọn được nhiều)</span></label><div class="checks">' + ['DC', 'PH1', 'PH2'].map(function (k) {
+                return '<label><input type="checkbox" data-site="' + k + '"' + (st.sites.indexOf(k) >= 0 ? ' checked' : '') + '>' + esc(siteName(k)) + '</label>';
+              }).join('') + '</div>' +
+              '<label class="f">Môn dạy</label><div class="checks">' + MON_LIST.map(function (x) {
+                return '<label><input type="checkbox" data-mon="' + esc(x) + '"' + (st.mons.indexOf(x) >= 0 ? ' checked' : '') + '>' + esc(x) + '</label>';
+              }).join('') + '</div>';
+          } else {
+            h += '<label class="f">Điểm trường phụ trách</label><div class="checks">' + ['DC', 'PH1', 'PH2'].map(function (k) {
+                return '<label><input type="radio" name="sn" value="' + k + '"' + (st.nv === k ? ' checked' : '') + '>' + esc(siteName(k)) + '</label>';
+              }).join('') + '</div><p class="mut sm">Vai trò chỉ chọn được một lần. Nếu chọn nhầm, báo quản trị để sửa.</p>';
+          }
+          el.querySelector('#sub').innerHTML = h;
+          el.querySelectorAll('[name=sr]').forEach(function (r) { r.onchange = function () { st.role = r.value; draw(); }; });
+          el.querySelectorAll('[name=st]').forEach(function (r) { r.onchange = function () { st.to = r.value; }; });
+          el.querySelectorAll('[name=sn]').forEach(function (r) { r.onchange = function () { st.nv = r.value; }; });
+          el.querySelectorAll('[data-site]').forEach(function (cb) { cb.onchange = function () { var k = cb.dataset.site; st.sites = st.sites.filter(function (x) { return x !== k; }); if (cb.checked) st.sites.push(k); }; });
+          el.querySelectorAll('[data-mon]').forEach(function (cb) { cb.onchange = function () { var k = cb.dataset.mon; st.mons = st.mons.filter(function (x) { return x !== k; }); if (cb.checked) st.mons.push(k); }; });
         }
       });
   }
@@ -2045,10 +2101,10 @@ var EX = (function () {
     var role = function (r) { return r.split(',').map(function (x) { return { GV: 'Giáo viên', NVTB: 'NV thiết bị', ADMIN: 'Quản trị' }[x] || x; }).join(', '); };
     var h = '<div class="card"><h2>Tài khoản (' + j.users.length + ')</h2>' +
       '<div class="row"><button class="btn pri sm" id="ua">+ Thêm</button><button class="btn sm" id="ui">⬆ Tải danh sách từ Excel</button><button class="btn sm" id="um">⬇ File mẫu</button></div>' +
-      '<p class="mut sm" style="margin:8px 0">Tên đăng nhập tự tạo từ họ tên viết liền không dấu (vd: Đặng Cao Cường → dangcaocuong). Mật khẩu ban đầu: <b>123456</b>, người dùng phải đổi khi đăng nhập lần đầu.</p>' +
+      '<p class="mut sm" style="margin:8px 0">File Excel chỉ cần cột <b>Họ và tên</b>. Tên đăng nhập tự tạo từ họ tên viết liền không dấu (vd: Đặng Cao Cường → dangcaocuong), mật khẩu ban đầu <b>123456</b>. Lần đầu đăng nhập, mỗi người tự đổi mật khẩu và tự chọn vai trò, tổ, điểm trường, môn dạy.</p>' +
       '<input type="text" id="uq" placeholder="🔍 Tìm…" value="' + esc(q) + '">' +
       users.map(function (u) {
-        return '<div class="item" data-u="' + esc(u.username) + '"><div class="grow"><div class="nm">' + esc(u.hoTen) + (u.khoa ? ' <span class="chip r">Bị khóa</span>' : '') + '</div>' +
+        return '<div class="item" data-u="' + esc(u.username) + '"><div class="grow"><div class="nm">' + esc(u.hoTen) + (u.khoa ? ' <span class="chip r">Bị khóa</span>' : '') + (!u.hsXong ? ' <span class="chip">Chưa thiết lập</span>' : '') + '</div>' +
           '<div class="mut sm">' + esc(u.username) + ' · ' + esc(role(u.vaiTro)) + (u.to ? ' · Tổ ' + esc(u.to) : '') + ' · ' + esc((u.diemTruong || '').split(',').filter(Boolean).map(siteName).join(', ') || '—') + '</div></div></div>';
       }).join('') + '</div>';
     var P = [['GIO_SANG', 'Giờ vào tiết 1 buổi sáng', 'time'], ['GIO_CHIEU', 'Giờ vào tiết 1 buổi chiều', 'time'], ['PHUT_TIET', 'Số phút mỗi tiết', 'number'],
@@ -2136,10 +2192,10 @@ var EX = (function () {
     for (var r = hdr + 1; r < grid.length; r++) {
       var name = String(grid[r][cH] || '').trim();
       if (!name || /^\d+$/.test(name)) continue;
-      rows.push({ hoTen: name, to: cT >= 0 ? grid[r][cT] : '', diemTruong: cD >= 0 ? grid[r][cD] : '', vaiTro: cV >= 0 ? grid[r][cV] : 'GV' });
+      rows.push({ hoTen: name, to: cT >= 0 ? grid[r][cT] : '', diemTruong: cD >= 0 ? grid[r][cD] : '', vaiTro: cV >= 0 ? grid[r][cV] : '' });
     }
     if (!rows.length) return toast('Không có dòng nào.', true);
-    confirmBox('Đọc được ' + rows.length + ' người. Người đã có (trùng họ tên) sẽ được cập nhật tổ/điểm trường/vai trò; người mới được tạo tài khoản với mật khẩu 123456.', 'Tải lên', async function () {
+    confirmBox('Đọc được ' + rows.length + ' người. Người đã có (trùng họ tên) được giữ nguyên; người mới được tạo tài khoản, mật khẩu 123456. Vai trò, tổ, điểm trường do mỗi người tự chọn khi đăng nhập lần đầu.', 'Tải lên', async function () {
       var j = await call('importUsers', { rows: rows });
       if (!j) return;
       after();
