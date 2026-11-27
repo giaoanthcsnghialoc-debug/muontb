@@ -790,8 +790,12 @@ var EX = (function () {
     var retToday = [];
     g.rows.forEach(function (r) { if (r.ngay === S.boot.today) (g.sel[r.key] || []).forEach(function (x) { if (canReturn(x, r)) retToday.push(x.id); }); });
     if (retToday.length) h += '<div class="note row"><span class="grow">Hôm nay thầy/cô đang mượn <b>' + retToday.length + '</b> thiết bị. Dạy xong, trả đồ rồi bấm báo trả.</span><button class="btn sm pri" id="retall">↩ Báo trả tất cả</button></div>';
+    var wd = U.parseYmd(S.boot.today).getDay();
+    if (g.tuanBD === U.monday(S.boot.today) && (wd === 5 || wd === 6 || wd === 0)) {
+      h += '<div class="note row"><span class="grow">Đang xem <b>tuần ' + weekNo(g.tuanBD) + '</b> (tuần hiện tại). Báo mượn cho tuần sau?</span><button class="btn sm pri" id="gonext">Sang tuần ' + (weekNo(g.tuanBD) + 1) + ' ▶</button></div>';
+    }
     h += '<div class="row" style="margin-bottom:12px"><button class="btn pri grow" id="up">📄 Tải lịch báo giảng lên</button>' +
-      '<button class="btn grow" id="km">🚫 Tuần này không mượn</button></div>';
+      '<button class="btn grow" id="km">🚫 Tuần ' + weekNo(g.tuanBD) + ' không mượn</button></div>';
 
     if (g.parsed && U.key(g.parsed.meta.gv) && U.key(g.parsed.meta.gv) !== U.key(S.boot.me.hoTen)) {
       h += '<div class="note">Lịch báo giảng này của <b>' + esc(g.parsed.meta.gv) + '</b>, không trùng tên tài khoản đang đăng nhập.</div>';
@@ -832,6 +836,7 @@ var EX = (function () {
     v.querySelector('#wn').onclick = function () { switchWeek(U.addDays(g.tuanBD, 7)); };
     v.querySelector('#up').onclick = function () { pickFile('.xls,.xlsx', uploadLBG); };
     v.querySelector('#km').onclick = noBorrow;
+    var gn = v.querySelector('#gonext'); if (gn) gn.onclick = function () { switchWeek(U.addDays(g.tuanBD, 7)); };
     var man = v.querySelector('#man'); if (man) man.onclick = manualRow;
     v.querySelectorAll('[data-add]').forEach(function (b) { b.onclick = function () { openPicker(g.rows[+b.dataset.add]); }; });
     v.querySelectorAll('[data-rm]').forEach(function (b) {
@@ -1290,7 +1295,7 @@ var EX = (function () {
   /* =================== NV THIẾT BỊ: THEO TUẦN =================== */
   async function viewTuan(v) {
     var site = nvSite();
-    S.nv.tuan = S.nv.tuan || U.monday(S.boot.today);
+    S.nv.tuan = S.nv.tuan || defaultWeek();
     var j = await call('weekStatus', { tuanBD: S.nv.tuan, site: site });
     if (!j) return;
     var sites = mySites(), f = S.nv.loc || '';
