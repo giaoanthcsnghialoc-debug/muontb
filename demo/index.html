@@ -802,8 +802,8 @@ var EX = (function () {
     }
     if (!g.rows.length) {
       h += '<div class="card empty">Tải lịch báo giảng (file xuất từ vnEdu) để chọn thiết bị cho từng tiết.<br><br>' +
-        '<b>Chưa có lịch báo giảng?</b> Lấy thời khóa biểu của tuần trước để mượn trước, khi có lịch báo giảng thì tải lên sau.<br><br>' +
-        '<button class="btn pri sm" id="tkb">📅 Lấy thời khóa biểu tuần trước</button> ' +
+        '<b>Chưa có lịch báo giảng tuần ' + weekNo(g.tuanBD) + '?</b> Lấy lịch báo giảng tuần ' + (weekNo(g.tuanBD) - 1) + ' để mượn trước, khi có lịch báo giảng tuần ' + weekNo(g.tuanBD) + ' thì tải lên sau.<br><br>' +
+        '<button class="btn pri sm" id="tkb">📅 Lấy lịch báo giảng tuần ' + (weekNo(g.tuanBD) - 1) + '</button> ' +
         '<button class="btn sm" id="man">+ Thêm tiết dạy thủ công</button><br><br>' +
         '<span class="sm">Tuần nào không dùng thiết bị, chỉ cần bấm <b>“Tuần ' + weekNo(g.tuanBD) + ' không mượn”</b>.</span></div>';
     } else {
@@ -914,7 +914,7 @@ var EX = (function () {
     else apply();
   }
 
-  /** Lấy thời khóa biểu (thứ, buổi, tiết, lớp, môn) của tuần trước làm khung để mượn trước */
+  /** Lấy lịch báo giảng tuần trước (thứ, buổi, tiết, lớp, môn) làm khung để mượn trước */
   async function copyPrevTKB() {
     var g = S.gv, src = [], back = 0;
     for (var k = 1; k <= 4 && !src.length; k++) {
@@ -924,7 +924,7 @@ var EX = (function () {
       if (!src.length) src = (j.items || []).map(function (it) { return { ngay: it.ngay, buoi: it.buoi, tiet: Number(it.tiet), lop: it.lop, mon: it.mon, site: it.diemTruong }; });
       back = k;
     }
-    if (!src.length) return toast('4 tuần trước chưa có lịch báo giảng nào trên app. Hãy thêm tiết thủ công.', true);
+    if (!src.length) return toast('Chưa có lịch báo giảng tuần ' + (weekNo(g.tuanBD) - 1) + ' (và 3 tuần trước đó) trên app. Hãy thêm tiết thủ công.', true);
     var seen = {};
     g.rows.forEach(function (r) { seen[r.key] = 1; });
     var n = 0;
@@ -935,7 +935,7 @@ var EX = (function () {
       seen[x.key] = 1; g.rows.push(x); n++;
     });
     sortRows(g.rows);
-    toast('Đã lấy ' + n + ' tiết theo thời khóa biểu tuần trước. Bấm ✏️ để ghi tên bài nếu muốn.');
+    toast('Đã lấy ' + n + ' tiết từ lịch báo giảng tuần ' + (weekNo(g.tuanBD) - back) + '. Bấm ✏️ để ghi tên bài nếu muốn.');
     renderBao();
   }
 
