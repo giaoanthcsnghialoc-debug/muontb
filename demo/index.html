@@ -792,7 +792,7 @@ var EX = (function () {
 
     var retToday = [];
     g.rows.forEach(function (r) { if (r.ngay === S.boot.today) (g.sel[r.key] || []).forEach(function (x) { if (canReturn(x, r)) retToday.push(x.id); }); });
-    if (retToday.length) h += '<div class="note row"><span class="grow">Hôm nay thầy/cô đang mượn <b>' + retToday.length + '</b> thiết bị. Dạy xong, trả đồ rồi bấm báo trả.</span><button class="btn sm pri" id="retall">↩ Báo trả tất cả</button></div>';
+    if (retToday.length) h += '<div class="note row"><span class="grow">Hôm nay thầy/cô mượn <b>' + retToday.length + '</b> thiết bị. App tự ghi trả khi tan buổi; chỉ bấm nếu trả sớm hoặc có hỏng/thiếu.</span><button class="btn sm pri" id="retall">↩ Báo trả tất cả</button></div>';
     var wd = U.parseYmd(S.boot.today).getDay();
     if (g.tuanBD === U.monday(S.boot.today) && (wd === 5 || wd === 6 || wd === 0)) {
       h += '<div class="note row"><span class="grow">Đang xem <b>tuần ' + weekNo(g.tuanBD) + '</b> (tuần hiện tại). Báo mượn cho tuần sau?</span><button class="btn sm pri" id="gonext">Sang tuần ' + (weekNo(g.tuanBD) + 1) + ' ▶</button></div>';
@@ -1401,7 +1401,8 @@ var EX = (function () {
       (sites.length > 1 ? '<select id="hs" class="grow" style="width:auto">' + siteOpts(sites, site) + '</select>' : '<b class="grow">' + esc(siteName(site)) + '</b>') +
       '<button class="btn sm" id="ht">Hôm nay</button></div>' +
       '<div class="row" style="margin-top:8px;flex-wrap:nowrap"><button class="btn sm" id="hp">◀</button><input type="date" id="hd" value="' + S.nv.ngay + '" style="flex:1;min-width:0"><button class="btn sm" id="hx">▶</button></div>' +
-      '<div class="mut sm" style="margin-top:6px;text-align:center">' + U.thu(S.nv.ngay) + ', ' + U.dmy(S.nv.ngay) + '</div></div>';
+      '<div class="mut sm" style="margin-top:6px;text-align:center">' + U.thu(S.nv.ngay) + ', ' + U.dmy(S.nv.ngay) + '</div>' +
+      '<div class="note" style="margin-bottom:0">App <b>tự ghi Đã giao</b> khi vào tiết 1 (sáng ' + esc(S.boot.settings.GIO_SANG) + ', chiều ' + esc(S.boot.settings.GIO_CHIEU) + ') và <b>tự ghi Đã trả</b> khi tan buổi (sáng ' + esc(S.boot.settings.GIO_TRA_SANG || '11:35') + ', chiều ' + esc(S.boot.settings.GIO_TRA_CHIEU || '17:35') + '). Cô chỉ cần xem danh sách để soạn đồ; bấm vào thiết bị khi cần <b>từ chối</b> hoặc ghi <b>hỏng/thiếu</b>.</div></div>';
     if (j.chuaTra.length) {
       h += '<div class="alert"><b>⚠ ' + j.chuaTra.length + ' thiết bị đã giao từ hôm trước nhưng chưa ghi nhận trả:</b>' +
         j.chuaTra.map(function (it) { return '\n• ' + it.hoTen + ' – ' + it.tenTB + ' ×' + it.soLuong + ' (' + U.dm(it.ngay) + ', ' + it.buoi + ' tiết ' + it.tiet + ')'; }).join('') +
@@ -1734,7 +1735,7 @@ var EX = (function () {
       }).join('') + '</div>';
     var P = [['GIO_SANG', 'Giờ vào tiết 1 buổi sáng', 'time'], ['GIO_CHIEU', 'Giờ vào tiết 1 buổi chiều', 'time'], ['PHUT_TIET', 'Số phút mỗi tiết', 'number'],
       ['PHUT_NGHI', 'Nghỉ giữa các tiết (phút)', 'number'], ['RA_CHOI_SAU_TIET', 'Ra chơi sau tiết', 'number'], ['PHUT_RA_CHOI', 'Thời gian ra chơi (phút)', 'number'],
-      ['GIO_TU_TRA', 'Giờ app tự ghi trả thiết bị chưa trả trong ngày', 'time'], ['NGAY_TUAN1', 'Ngày bắt đầu Tuần 1 (thứ Hai)', 'date'], ['TEN_TRUONG', 'Tên trường (in trên phiếu)', 'text'], ['CAP_TREN', 'Cơ quan cấp trên (in trên phiếu)', 'text']];
+      ['GIO_MUON_SANG', 'Giờ mượn buổi sáng (ghi vào sổ)', 'time'], ['GIO_TRA_SANG', 'Giờ trả buổi sáng – tan buổi (app tự ghi đã trả)', 'time'], ['GIO_MUON_CHIEU', 'Giờ mượn buổi chiều (ghi vào sổ)', 'time'], ['GIO_TRA_CHIEU', 'Giờ trả buổi chiều – tan buổi (app tự ghi đã trả)', 'time'], ['NGAY_TUAN1', 'Ngày bắt đầu Tuần 1 (thứ Hai)', 'date'], ['TEN_TRUONG', 'Tên trường (in trên phiếu)', 'text'], ['CAP_TREN', 'Cơ quan cấp trên (in trên phiếu)', 'text']];
     h += '<div class="card"><h2>Cài đặt</h2>' + P.map(function (p) { return '<label class="f">' + p[1] + '</label><input type="' + p[2] + '" id="s_' + p[0] + '" value="' + esc(st[p[0]]) + '">'; }).join('') +
       '<div class="note" id="gp"></div><button class="btn pri" id="ssave">Lưu cài đặt</button></div>';
     v.innerHTML = h;
