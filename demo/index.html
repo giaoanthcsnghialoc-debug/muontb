@@ -580,7 +580,7 @@ var EX = (function () {
     ws.getRow(4).height = 32;
     var head = ['STT', 'Họ và tên', 'Tên đăng nhập', 'Mật khẩu ban đầu', 'Vai trò', 'Tổ', 'Điểm trường'];
     ws.getRow(6).values = head;
-    var RN = { GV: 'Giáo viên', NVTB: 'NV thiết bị', ADMIN: 'Quản trị' };
+    var RN = { GV: 'Giáo viên', NVTB: 'NV thiết bị', TONGHOP: 'Phụ trách toàn trường', ADMIN: 'Quản trị' };
     var r = 7;
     users.forEach(function (u, i) {
       ws.getRow(r).values = [i + 1, u.hoTen, u.username, u.doiMK ? '123456' : '(đã tự đổi)',
@@ -713,7 +713,7 @@ var EX = (function () {
   }
   function has(role) { var r = (S.boot && S.boot.me.vaiTro || '').split(','); return r.indexOf(role) >= 0; }
   function mySites() {
-    if (has('ADMIN')) return ['DC', 'PH1', 'PH2'];
+    if (has('ADMIN') || has('TONGHOP')) return ['DC', 'PH1', 'PH2'];
     return (S.boot.me.diemTruong || '').split(',').filter(Boolean);
   }
   function siteName(k) { return (S.boot && S.boot.sites[k]) || k || '—'; }
@@ -784,7 +784,7 @@ var EX = (function () {
   function tabsFor() {
     var t = [];
     if (has('GV')) t.push(['bao', '📝 Báo mượn'], ['ls', '🗂 Đã báo']);
-    if (has('NVTB') || has('ADMIN')) t.push(['hn', '📦 Giao – trả'], ['tuan', '📋 Theo tuần'], ['dm', '📚 Danh mục'], ['so', '📒 Sổ mượn trả']);
+    if (has('NVTB') || has('ADMIN') || has('TONGHOP')) t.push(['hn', '📦 Giao – trả'], ['tuan', '📋 Theo tuần'], ['dm', '📚 Danh mục'], ['so', '📒 Sổ mượn trả']);
     if (has('ADMIN')) t.push(['qt', '⚙️ Quản trị']);
     return t;
   }
@@ -1438,6 +1438,16 @@ var EX = (function () {
       var u = m.querySelector('#pvu'); if (u) u.onclick = async function () { var k = await call('phieuApprove', { ids: [p.id], op: 'HOAN_TAC' }); if (k) { toast('Đã hoàn tác, phiếu chờ duyệt lại'); done(); } };
     });
   }
+  /** Người phụ trách toàn trường xem điểm trường khác: chỉ xem / xuất, không giao – trả, duyệt, sửa danh mục */
+  function roSite(site) { return !has('ADMIN') && mySitesNV().indexOf(site) < 0 || (!has('NVTB') && !has('ADMIN')); }
+  function applyRO(v, site) {
+    if (!roSite(site)) return;
+    v.querySelectorAll('#tra-cu,[data-ga],[data-ta],#apall,#du,#dadd').forEach(function (e) { e.style.display = 'none'; });
+    v.querySelectorAll('[data-it],[data-c]').forEach(function (e) { e.style.pointerEvents = 'none'; });
+    var n = document.createElement('div'); n.className = 'note';
+    n.innerHTML = '👁 Chế độ xem toàn trường: ' + esc(siteName(site)) + ' do NV thiết bị điểm đó phụ trách giao – trả, duyệt phiếu. Thầy/cô vẫn xem và xuất phiếu, sổ được.';
+    v.insertBefore(n, v.firstChild);
+  }
   function mySitesNV() { return (S.boot.me.diemTruong || '').split(',').filter(Boolean); }
   async function approvePhieu(ids, after) {
     if (!S.boot.me.coKy) { toast('Cô/thầy cần có chữ ký trước khi duyệt phiếu.'); return signatureModal(function () { approvePhieu(ids, after); }); }
@@ -1875,7 +1885,7 @@ var EX = (function () {
   /* =================== NV THIẾT BỊ: GIAO – TRẢ =================== */
   function nvSite() {
     var s = mySites();
-    if (!S.nv.site || s.indexOf(S.nv.site) < 0) S.nv.site = s[0] || 'DC';
+    if (!S.nv.site || s.indexOf(S.nv.site) < 0) S.nv.site = (has('NVTB') && mySitesNV()[0]) || s[0] || 'DC';
     return S.nv.site;
   }
 
@@ -1919,6 +1929,7 @@ var EX = (function () {
         });
     });
     v.innerHTML = h;
+    applyRO(v, site);
     var all = j.items.concat(j.chuaTra);
     var re = function () { viewHN(document.getElementById('v')); };
     var hs = v.querySelector('#hs'); if (hs) hs.onchange = function () { S.nv.site = hs.value; re(); };
@@ -1997,6 +2008,7 @@ var EX = (function () {
         return '<div class="item"' + (pp ? ' data-pv="' + esc(pp.id) + '"' : ' style="cursor:default"') + '><div class="grow"><div class="nm">' + esc(x.hoTen) + '</div><div class="mut sm">Tổ ' + esc(x.to || '—') + (x.guiLuc ? ' · ' + esc(x.guiLuc) : '') + '</div></div>' + c + '</div>';
       }).join('') : '<div class="empty">Không có giáo viên.</div>') + '</div>';
     v.innerHTML = h;
+    applyRO(v, site);
     var re = function () { viewTuan(document.getElementById('v')); };
     v.querySelector('#wp').onclick = function () { S.nv.tuan = U.addDays(S.nv.tuan, -7); re(); };
     v.querySelector('#wn').onclick = function () { S.nv.tuan = U.addDays(S.nv.tuan, 7); re(); };
@@ -2055,6 +2067,7 @@ var EX = (function () {
           esc([c.ma, c.loai, c.mon, c.khoi, c.kho].filter(Boolean).join(' · ')) + '</div></div><span class="chip">' + c.soLuong + ' ' + esc(c.donVi || '') + '</span></div>';
       }).join('') + (show.length > 400 ? '<p class="mut sm">… còn ' + (show.length - 400) + ' thiết bị, gõ để tìm.</p>' : '') : '<div class="empty">Chưa có thiết bị.</div>') + '</div>';
     v.innerHTML = h;
+    applyRO(v, site);
     var re = function () { viewDM(document.getElementById('v')); };
     var ds = v.querySelector('#ds'); if (ds) ds.onchange = function () { S.nv.site = ds.value; re(); };
     v.querySelectorAll('.fchips [data-f]').forEach(function (b) { b.onclick = function () { S.nv.dmf = b.dataset.f; re(); }; });
@@ -2165,13 +2178,14 @@ var EX = (function () {
     f.from = f.from || t.slice(0, 8) + '01';
     f.to = f.to || t;
     var sites = mySites();
-    if (!has('ADMIN') && f.site === undefined) f.site = sites[0];
+    var toanTruong = has('ADMIN') || has('TONGHOP');
+    if (!toanTruong && f.site === undefined) f.site = sites[0];
     var teachers = (S.boot.teachers || []).slice().sort(function (a, b) { return a.hoTen.localeCompare(b.hoTen, 'vi'); });
     var h = '<div class="card"><h2>Sổ theo dõi mượn – trả</h2>' +
       '<div class="row"><div class="grow"><label class="f">Từ ngày</label><input type="date" id="sf" value="' + f.from + '"></div>' +
       '<div class="grow"><label class="f">Đến ngày</label><input type="date" id="st" value="' + f.to + '"></div></div>' +
       '<div class="row" style="margin-top:6px"><button class="btn sm" data-q="tuan">Tuần này</button><button class="btn sm" data-q="thang">Tháng này</button><button class="btn sm" data-q="hk1">Học kỳ I</button><button class="btn sm" data-q="hk2">Học kỳ II</button><button class="btn sm" data-q="nam">Cả năm</button></div>' +
-      '<div class="row"><div class="grow"><label class="f">Điểm trường</label><select id="ss">' + siteOpts(sites, f.site, has('ADMIN') ? 'Toàn trường' : null) + '</select></div>' +
+      '<div class="row"><div class="grow"><label class="f">Điểm trường</label><select id="ss">' + siteOpts(sites, f.site, toanTruong ? 'Toàn trường' : null) + '</select></div>' +
       '<div class="grow"><label class="f">Tổ</label><select id="sto"><option value="">Tất cả tổ</option>' + S.boot.toList.map(function (x) { return '<option' + (x === f.to2 ? ' selected' : '') + '>' + esc(x) + '</option>'; }).join('') + '</select></div></div>' +
       '<label class="f">Giáo viên</label><select id="sg"><option value="">Tất cả giáo viên</option>' + teachers.map(function (x) { return '<option value="' + esc(x.username) + '"' + (x.username === f.username ? ' selected' : '') + '>' + esc(x.hoTen) + '</option>'; }).join('') + '</select>' +
       '<div class="row" style="margin-top:12px"><button class="btn pri grow" id="sx">Xem</button><button class="btn grow" id="se">⬇ Xuất Excel</button></div></div><div id="sr"></div>';
@@ -2227,7 +2241,7 @@ var EX = (function () {
     var kw = U.key(q);
     var users = j.users.filter(function (u) { return !kw || U.key(u.hoTen + ' ' + u.username + ' ' + u.to).indexOf(kw) >= 0; })
       .sort(function (a, b) { return a.hoTen.localeCompare(b.hoTen, 'vi'); });
-    var role = function (r) { return r.split(',').map(function (x) { return { GV: 'Giáo viên', NVTB: 'NV thiết bị', ADMIN: 'Quản trị' }[x] || x; }).join(', '); };
+    var role = function (r) { return r.split(',').map(function (x) { return { GV: 'Giáo viên', NVTB: 'NV thiết bị', TONGHOP: 'Phụ trách toàn trường', ADMIN: 'Quản trị' }[x] || x; }).join(', '); };
     var h = '<div class="card"><h2>Tài khoản (' + j.users.length + ')</h2>' +
       '<div class="row"><button class="btn pri sm" id="ua">+ Thêm</button><button class="btn sm" id="ui">⬆ Tải danh sách từ Excel</button><button class="btn sm" id="um">⬇ File mẫu</button><button class="btn sm" id="udl">⬇ Tải danh sách tài khoản</button></div>' +
       '<p class="mut sm" style="margin:8px 0">File Excel chỉ cần cột <b>Họ và tên</b>. Tên đăng nhập tự tạo từ họ tên viết liền không dấu (vd: Đặng Cao Cường → dangcaocuong), mật khẩu ban đầu <b>123456</b>. Lần đầu đăng nhập, mỗi người tự đổi mật khẩu và tự chọn vai trò, tổ, điểm trường, môn dạy.</p>' +
@@ -2283,7 +2297,7 @@ var EX = (function () {
       '<label class="f">Điểm trường (dạy / phụ trách)</label><div class="checks">' + ['DC', 'PH1', 'PH2'].map(function (k) {
         return '<label><input type="checkbox" name="us" value="' + k + '"' + (sites.indexOf(k) >= 0 ? ' checked' : '') + '>' + esc(siteName(k)) + '</label>';
       }).join('') + '</div>' +
-      '<label class="f">Vai trò</label><div class="checks">' + [['GV', 'Giáo viên'], ['NVTB', 'NV thiết bị'], ['ADMIN', 'Quản trị']].map(function (r) {
+      '<label class="f">Vai trò</label><div class="checks">' + [['GV', 'Giáo viên'], ['NVTB', 'NV thiết bị'], ['TONGHOP', 'Phụ trách toàn trường (xem, xuất phiếu – sổ cả trường)'], ['ADMIN', 'Quản trị']].map(function (r) {
         return '<label><input type="checkbox" name="ur" value="' + r[0] + '"' + (roles.indexOf(r[0]) >= 0 ? ' checked' : '') + '>' + r[1] + '</label>';
       }).join('') + '</div>' +
       (!isNew ? '<div class="row" style="margin-top:14px"><button class="btn sm" id="urp">Đặt lại mật khẩu</button>' + (u.khoa ? '<button class="btn sm" id="uul">Mở khóa</button>' : '') + '<button class="btn sm warn" id="udel">Xóa tài khoản</button></div>' : ''),
