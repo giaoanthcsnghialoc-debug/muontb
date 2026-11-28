@@ -349,36 +349,46 @@ var EX = (function () {
   }
 
   /** 2) Phiếu báo mượn đồ dùng (mẫu của trường), mỗi GV × điểm trường một sheet. */
+  /** Giờ mượn / giờ trả của một lượt mượn: giờ thực tế nếu đã có, nếu chưa thì theo giờ quy định của buổi */
+  function gioMT(it, st) {
+    st = st || {};
+    var hm = function (v) { var m = String(v || '').match(/(\d{1,2}):(\d{2})/); return m ? (m[1].length < 2 ? '0' : '') + m[1] + ':' + m[2] : ''; };
+    var chieu = it.buoi === 'Chiều';
+    var muon = hm(it.gioGiao) || hm(chieu ? st.GIO_MUON_CHIEU : st.GIO_MUON_SANG) || (chieu ? '13:50' : '06:50');
+    var tra = hm(it.gioTra) || hm(chieu ? st.GIO_TRA_CHIEU : st.GIO_TRA_SANG) || (chieu ? '17:35' : '11:35');
+    return [muon, tra];
+  }
+
   function addPhieuSheet(wb, used, st, info, items) {
     var ws = wb.addWorksheet(safeSheetName(info.sheet || info.hoTen, used),
       { pageSetup: { paperSize: 9, orientation: 'landscape', fitToPage: true, fitToWidth: 1, fitToHeight: 0 } });
-    [5, 10, 7, 11, 7, 38, 30, 11, 15, 12, 10].forEach(function (w, i) { ws.getColumn(i + 1).width = w; });
+    [5, 10, 7, 11, 7, 32, 28, 11, 15, 12, 9, 9, 10].forEach(function (w, i) { ws.getColumn(i + 1).width = w; });
     ws.mergeCells('A1:E1'); ws.getCell('A1').value = st.CAP_TREN;
     ws.mergeCells('A2:E2'); ws.getCell('A2').value = st.TEN_TRUONG;
     ['A1', 'A2'].forEach(function (a) { ws.getCell(a).alignment = { horizontal: 'center' }; });
     ws.getCell('A2').font = { name: FONT, size: 12, bold: true };
-    title(ws, 3, 'PHIẾU BÁO MƯỢN ĐỒ DÙNG VÀ PHÒNG HỌC BỘ MÔN', 1, 11, 14);
-    title(ws, 4, 'Tuần: ' + info.soTuan + '   Từ ngày: ' + U.dmy(info.tuanBD) + '   đến ngày: ' + U.dmy(U.addDays(info.tuanBD, 6)), 1, 11, 12, false);
-    title(ws, 5, 'Họ và tên giáo viên: ' + info.hoTen + '   Tổ: ' + (info.to || '') + '   –   ' + (SITE_NAME[info.site] || ''), 1, 11, 12, true);
+    title(ws, 3, 'PHIẾU BÁO MƯỢN ĐỒ DÙNG VÀ PHÒNG HỌC BỘ MÔN', 1, 13, 14);
+    title(ws, 4, 'Tuần: ' + info.soTuan + '   Từ ngày: ' + U.dmy(info.tuanBD) + '   đến ngày: ' + U.dmy(U.addDays(info.tuanBD, 6)), 1, 13, 12, false);
+    title(ws, 5, 'Họ và tên giáo viên: ' + info.hoTen + '   Tổ: ' + (info.to || '') + '   –   ' + (SITE_NAME[info.site] || ''), 1, 13, 12, true);
     var head = ['TT', 'Tiết\ndạy', 'Tiết\nPPCT', 'Môn', 'Lớp', 'Tên bài dạy', 'Tên thiết bị\n(hay hóa chất cần dùng)',
-      'Số lượng\n(dụng cụ hoặc bộ dụng cụ)', 'Hình thức sử dụng\n(tại lớp hoặc phòng thực hành)', 'Ngày sử dụng', 'Có sử dụng\n(đánh dấu x)'];
+      'Số lượng\n(dụng cụ hoặc bộ dụng cụ)', 'Hình thức sử dụng\n(tại lớp hoặc phòng thực hành)', 'Ngày sử dụng', 'Giờ mượn', 'Giờ trả', 'Có sử dụng\n(đánh dấu x)'];
     ws.getRow(7).values = head;
     ws.getRow(7).height = 48;
     var r = 8;
     if (!items.length) {
-      ws.getRow(r).values = ['', '', '', '', '', '', 'Không mượn', '', '', '', ''];
+      ws.getRow(r).values = ['', '', '', '', '', '', 'Không mượn', '', '', '', '', '', ''];
       r++;
     } else {
       items.forEach(function (it, i) {
         ws.getRow(r).values = [i + 1, 'Tiết ' + it.tiet + '\n(' + it.buoi + ')', it.tietPPCT, it.mon, it.lop, it.tenBai, it.tenTB,
-          Number(it.soLuong), it.hinhThuc, U.dmy(it.ngay), (it.trangThai === 'DA_GIAO' || it.trangThai === 'DA_TRA') ? 'x' : ''];
+          Number(it.soLuong), it.hinhThuc, U.dmy(it.ngay), gioMT(it, st)[0], gioMT(it, st)[1], (it.trangThai === 'DA_GIAO' || it.trangThai === 'DA_TRA') ? 'x' : ''];
         r++;
       });
     }
     fontAll(ws, 12);
-    box(ws, 7, r - 1, 1, 11);
+    box(ws, 7, r - 1, 1, 13);
     ws.getRow(7).eachCell(function (c) { c.font = { name: FONT, size: 11, bold: true }; c.alignment = { horizontal: 'center', vertical: 'middle', wrapText: true }; });
-    for (var k = 8; k < r; k++) [1, 2, 3, 5, 8, 10, 11].forEach(function (c) { ws.getCell(k, c).alignment = { horizontal: 'center', vertical: 'middle', wrapText: true }; });
+    for (var k = 8; k < r; k++) [1, 2, 3, 5, 8, 10, 11, 12, 13].forEach(function (c) { ws.getCell(k, c).alignment = { horizontal: 'center', vertical: 'middle', wrapText: true }; });
     // Khối ký: trái = Nhân viên thiết bị, phải = Giáo viên
     var ph = info.phieu || null;
     var stNV = !ph ? '' : ph.trangThai === 'DA_DUYET' ? 'Đồng ý cho mượn' : ph.trangThai === 'TU_CHOI' ? 'Từ chối: ' + (ph.lyDo || '') : 'Chưa duyệt';
@@ -390,8 +400,8 @@ var EX = (function () {
     };
     put(r + 1, 1, 6, 'NHÂN VIÊN THIẾT BỊ', { bold: true });
     put(r + 2, 1, 6, stNV ? '(' + stNV + ')' : '(Kí và ghi rõ họ tên)', { italic: true });
-    put(r + 1, 7, 11, 'GIÁO VIÊN', { bold: true });
-    put(r + 2, 7, 11, '(Kí và ghi rõ họ tên)', { italic: true });
+    put(r + 1, 7, 13, 'GIÁO VIÊN', { bold: true });
+    put(r + 2, 7, 13, '(Kí và ghi rõ họ tên)', { italic: true });
     for (var k2 = r + 3; k2 <= r + 5; k2++) ws.getRow(k2).height = 24;
     var pngSize = function (b64) {
       try { var bin = atob(b64.slice(0, 40)); var u = function (i) { return (bin.charCodeAt(i) << 24 | bin.charCodeAt(i + 1) << 16 | bin.charCodeAt(i + 2) << 8 | bin.charCodeAt(i + 3)) >>> 0; }; return { w: u(16), h: u(20) }; }
@@ -418,12 +428,12 @@ var EX = (function () {
       } catch (e) { }
     };
     addSig(info.sigNV, 1, 6);
-    addSig(info.sigGV, 7, 11);
+    addSig(info.sigGV, 7, 13);
     put(r + 6, 1, 6, ph && ph.nvHoTen ? ph.nvHoTen : '', { bold: true });
-    put(r + 6, 7, 11, info.hoTen, { bold: true });
+    put(r + 6, 7, 13, info.hoTen, { bold: true });
     if (ph) {
       put(r + 7, 1, 6, ph.nvKyLuc ? 'Ký lúc ' + ph.nvKyLuc : '', { italic: true, size: 10 });
-      put(r + 7, 7, 11, ph.gvKyLuc ? 'Ký lúc ' + ph.gvKyLuc : '', { italic: true, size: 10 });
+      put(r + 7, 7, 13, ph.gvKyLuc ? 'Ký lúc ' + ph.gvKyLuc : '', { italic: true, size: 10 });
     }
     return ws;
   }
@@ -555,7 +565,7 @@ var EX = (function () {
   }
 
   return { save: save, buildLBG: buildLBG, buildPhieu: buildPhieu, buildSo: buildSo, buildMauDanhMuc: buildMauDanhMuc,
-    buildMauGV: buildMauGV, STATUS: STATUS, SITE_NAME: SITE_NAME, sortItems: sortItems };
+    buildMauGV: buildMauGV, gioMT: gioMT, STATUS: STATUS, SITE_NAME: SITE_NAME, sortItems: sortItems };
 })();
 
 /* ===== Ứng dụng Mượn thiết bị dạy học – giao diện ===== */
@@ -1364,9 +1374,10 @@ var EX = (function () {
     var st = { CHO_DUYET: '⏳ Chờ duyệt', DA_DUYET: '✅ Đồng ý cho mượn', TU_CHOI: '❌ Từ chối' }[p.trangThai] || p.trangThai;
     var h = '<div class="mut sm">Tuần ' + esc(p.soTuan) + ' (' + U.dm(p.tuanBD) + ' – ' + U.dmy(U.addDays(p.tuanBD, 6)) + ') · ' + esc(siteName(p.diemTruong)) + '</div>' +
       '<p style="margin:6px 0"><b>' + esc(p.hoTen) + '</b> · Tổ ' + esc(p.to || '—') + '</p>' +
-      '<div class="tw"><table class="t"><tr><th>Ngày</th><th>Tiết</th><th>Lớp</th><th>Bài dạy</th><th>Thiết bị</th><th>SL</th></tr>' +
+      '<div class="tw"><table class="t"><tr><th>Ngày</th><th>Tiết</th><th>Lớp</th><th>Bài dạy</th><th>Thiết bị</th><th>SL</th><th>Mượn<br>Trả</th></tr>' +
       its.map(function (x) {
-        return '<tr' + (x.trangThai === 'TU_CHOI' ? ' style="color:#c0392b"' : '') + '><td>' + U.dm(x.ngay) + '</td><td>' + (x.buoi === 'Sáng' ? 'S' : 'C') + x.tiet + '</td><td>' + esc(x.lop) + '</td><td>' + esc(x.mon) + (x.tenBai ? ': ' + esc(x.tenBai) : '') + '</td><td>' + esc(x.tenTB) + (x.catalogId ? '' : ' ✍️') + '</td><td>' + esc(x.soLuong) + '</td></tr>';
+        var gm = EX.gioMT(x, S.boot.settings);
+        return '<tr' + (x.trangThai === 'TU_CHOI' ? ' style="color:#c0392b"' : '') + '><td>' + U.dm(x.ngay) + '</td><td>' + (x.buoi === 'Sáng' ? 'S' : 'C') + x.tiet + '</td><td>' + esc(x.lop) + '</td><td>' + esc(x.mon) + (x.tenBai ? ': ' + esc(x.tenBai) : '') + '</td><td>' + esc(x.tenTB) + (x.catalogId ? '' : ' ✍️') + '</td><td>' + esc(x.soLuong) + '</td><td style="white-space:nowrap">' + gm[0] + '<br>' + gm[1] + '</td></tr>';
       }).join('') + '</table></div>' +
       '<div class="signs"><div><b>NHÂN VIÊN THIẾT BỊ</b><div class="sm">' + st + (p.lyDo ? '<br>Lý do: ' + esc(p.lyDo) : '') + '</div>' +
       '<div class="sg">' + (j.sigNV ? '<img src="' + j.sigNV + '">' : '') + '</div>' + '<div>' + esc(p.nvHoTen || '') + '</div><div class="mut sm">' + esc(p.nvKyLuc || '') + '</div></div>' +
