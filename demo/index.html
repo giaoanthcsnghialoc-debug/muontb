@@ -2253,10 +2253,12 @@ var EX = (function () {
     var P = [['GIO_SANG', 'Giờ vào tiết 1 buổi sáng', 'time'], ['GIO_CHIEU', 'Giờ vào tiết 1 buổi chiều', 'time'], ['PHUT_TIET', 'Số phút mỗi tiết', 'number'],
       ['PHUT_NGHI', 'Nghỉ giữa các tiết (phút)', 'number'], ['RA_CHOI_SAU_TIET', 'Ra chơi sau tiết', 'number'], ['PHUT_RA_CHOI', 'Thời gian ra chơi (phút)', 'number'],
       ['GIO_MUON_SANG', 'Giờ mượn buổi sáng (ghi vào sổ)', 'time'], ['GIO_TRA_SANG', 'Giờ trả buổi sáng – tan buổi (app tự ghi đã trả)', 'time'], ['GIO_MUON_CHIEU', 'Giờ mượn buổi chiều (ghi vào sổ)', 'time'], ['GIO_TRA_CHIEU', 'Giờ trả buổi chiều – tan buổi (app tự ghi đã trả)', 'time'], ['NGAY_TUAN1', 'Ngày bắt đầu Tuần 1 (thứ Hai)', 'date'], ['TEN_TRUONG', 'Tên trường (in trên phiếu)', 'text'], ['CAP_TREN', 'Cơ quan cấp trên (in trên phiếu)', 'text']];
+    h += '<div class="card" id="arc"><h2>Lưu trữ dữ liệu cũ</h2><p class="mut sm">Đang tải…</p></div>';
     h += '<div class="card"><h2>Cài đặt</h2>' + P.map(function (p) { return '<label class="f">' + p[1] + '</label><input type="' + p[2] + '" id="s_' + p[0] + '" value="' + esc(st[p[0]]) + '">'; }).join('') +
       '<div class="note" id="gp"></div><button class="btn pri" id="ssave">Lưu cài đặt</button></div>';
     v.innerHTML = h;
     var re = function () { viewQT(document.getElementById('v')); };
+    loadArchive(v.querySelector('#arc'), re);
     var uq = v.querySelector('#uq');
     uq.oninput = function () { S.admin.q = uq.value; clearTimeout(S.admin.t); S.admin.t = setTimeout(function () { re(); setTimeout(function () { var e = document.getElementById('uq'); if (e) { e.focus(); e.setSelectionRange(e.value.length, e.value.length); } }, 50); }, 400); };
     v.querySelector('#ua').onclick = function () { editUser({ vaiTro: 'GV', diemTruong: '' }, re); };
@@ -2284,6 +2286,38 @@ var EX = (function () {
       if (U.parseYmd(s.NGAY_TUAN1).getDay() !== 1) return toast('Ngày bắt đầu Tuần 1 phải là thứ Hai', true);
       var r = await call('saveSettings', { settings: s });
       if (r) { S.boot.settings = r.settings; toast('Đã lưu cài đặt'); }
+    };
+  }
+
+  /* ----- Lưu trữ cuối năm học ----- */
+  async function loadArchive(box, re) {
+    var j;
+    try { j = await api('archiveInfo', {}, true); } catch (e) { j = null; }
+    if (!j || !j.ok) { box.innerHTML = '<h2>Lưu trữ dữ liệu cũ</h2><p class="mut sm">Không tải được.</p>'; return; }
+    var hf = j.hotFrom && j.hotFrom > '0000-01-01' ? j.hotFrom : '';
+    var maxDen = hf ? U.addDays(hf, -1) : '';
+    // gợi ý: hết tháng 5 của năm học trước
+    var y = +S.boot.today.slice(0, 4), m = +S.boot.today.slice(5, 7);
+    var goiY = (m >= 6 ? y : y - 1) + '-05-31';
+    if (maxDen && goiY > maxDen) goiY = maxDen;
+    box.innerHTML = '<h2>Lưu trữ dữ liệu cũ</h2>' +
+      '<p class="sm">App luôn giữ <b>4 tuần gần nhất</b> và các tuần sắp tới ở bảng chính để chạy nhanh. Lượt mượn cũ hơn tự chuyển sang bảng lịch sử mỗi ngày (vẫn xem, xuất sổ bình thường).</p>' +
+      '<div class="mut sm">Bảng chính: <b>' + j.soDangDung + '</b> lượt · Lịch sử: <b>' + j.soLichSu + '</b> lượt' + (j.tuNgay ? ' (từ ' + U.dmy(j.tuNgay) + ')' : '') + ' · ' + j.soTuan + ' tuần báo · ' + j.soPhieu + ' phiếu</div>' +
+      '<p class="sm" style="margin-top:10px"><b>Cuối năm học</b>, bấm lưu trữ để chuyển dữ liệu năm cũ sang một file Google Sheets riêng (trong Drive của tài khoản trường). Sổ mượn trả năm cũ vẫn xuất được từ app.</p>' +
+      '<label class="f">Lưu trữ dữ liệu đến hết ngày</label><input type="date" id="arcd" value="' + goiY + '"' + (maxDen ? ' max="' + maxDen + '"' : '') + '>' +
+      '<button class="btn sm" id="arcb" style="margin-top:8px">📦 Lưu trữ</button>' +
+      (j.archives.length ? '<label class="f">Các file đã lưu trữ</label>' + j.archives.map(function (a) {
+        return '<div class="tb"><span class="grow"><a href="' + esc(a.url) + '" target="_blank">' + esc(a.ten) + '</a><br><span class="mut sm">' + U.dmy(a.tu) + ' – ' + U.dmy(a.den) + ' · ' + (a.soLuot || 0) + ' lượt · lưu lúc ' + esc(a.luc || '') + '</span></span></div>';
+      }).join('') : '');
+    box.querySelector('#arcb').onclick = function () {
+      var d = box.querySelector('#arcd').value;
+      if (!d) return toast('Chọn ngày', true);
+      if (maxDen && d > maxDen) return toast('Chỉ lưu trữ được dữ liệu trước ngày ' + U.dmy(hf) + ' (cũ hơn 4 tuần).', true);
+      confirmBox('Chuyển toàn bộ lượt mượn, phiếu, báo mượn đến hết tuần chứa ngày ' + U.dmy(d) + ' sang file lưu trữ riêng?\nViệc này mất khoảng 1 phút, nên làm khi ít người dùng (ví dụ nghỉ hè).', 'Lưu trữ', async function () {
+        toast('Đang lưu trữ, vui lòng chờ…');
+        var r = await call('archive', { den: d });
+        if (r) { toast(r.message); re(); }
+      });
     };
   }
 
