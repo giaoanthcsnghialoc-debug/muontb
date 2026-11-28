@@ -647,7 +647,13 @@ var EX = (function () {
   async function call(action, data) {
     try {
       var j = await api(action, data);
-      if (!j.ok) { toast(j.error || 'Có lỗi xảy ra', true); return null; }
+      // nhiều người gửi cùng lúc: tự thử lại tối đa 2 lần, giáo viên không phải bấm lại
+      for (var k = 0; k < 2 && !j.ok && /^BUSY:/.test(j.error || ''); k++) {
+        toast('Đang có nhiều người gửi, app tự gửi lại…');
+        await new Promise(function (r) { setTimeout(r, 2500 + Math.random() * 2500); });
+        j = await api(action, data);
+      }
+      if (!j.ok) { toast(String(j.error || 'Có lỗi xảy ra').replace(/^BUSY:\s*/, ''), true); return null; }
       return j;
     } catch (e) { toast(e.message, true); return null; }
   }
