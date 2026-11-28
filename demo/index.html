@@ -111,8 +111,9 @@ table.t th{color:var(--mut);font-weight:700;font-size:12.5px}
 .pcard{display:flex;gap:8px;align-items:center;border-radius:var(--r);padding:10px 12px;margin-bottom:8px;border:1px solid var(--line);background:#fff}
 .pcard.a{background:#fff6e5;border-color:#f3dcae}.pcard.g{background:var(--g2);border-color:#bfe3d1}.pcard.r{background:#fdecea;border-color:#f3c5bf}
 .signs{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-top:12px;text-align:center}
-.signs img{max-width:100%;max-height:80px;display:block;margin:6px auto}
-.signs .nosig{height:60px}
+.signs>div{display:flex;flex-direction:column;align-items:center}
+.signs .sg{height:100px;width:100%;display:flex;align-items:center;justify-content:center;margin:6px 0}
+.signs .sg img{max-height:100px;max-width:92%;width:auto;height:auto;min-height:60px;object-fit:contain}
 
 </style>
 <script>
@@ -396,19 +397,28 @@ var EX = (function () {
       try { var bin = atob(b64.slice(0, 40)); var u = function (i) { return (bin.charCodeAt(i) << 24 | bin.charCodeAt(i + 1) << 16 | bin.charCodeAt(i + 2) << 8 | bin.charCodeAt(i + 3)) >>> 0; }; return { w: u(16), h: u(20) }; }
       catch (e) { return { w: 300, h: 110 }; }
     };
-    var addSig = function (dataUrl, colCenter) {
+    // vị trí cột (px) để đặt chữ ký vào giữa khối ký
+    var colPx = function (c) { var w = ws.getColumn(c).width || 9; return Math.round(w * 7 + 5); };
+    var addSig = function (dataUrl, c1, c2) {
       if (!dataUrl) return;
       try {
         var b64 = String(dataUrl).split(',')[1], sz = pngSize(b64);
-        var hh = 70, ww = Math.min(200, Math.round(sz.w * hh / Math.max(1, sz.h)));
-        if (ww === 200) hh = Math.round(sz.h * 200 / Math.max(1, sz.w));
+        var hh = 66, ww = Math.round(sz.w * hh / Math.max(1, sz.h));
+        if (ww > 190) { ww = 190; hh = Math.round(sz.h * 190 / Math.max(1, sz.w)); }
+        var start = 0, width = 0, k;
+        for (k = 1; k < c1; k++) start += colPx(k);
+        for (k = c1; k <= c2; k++) width += colPx(k);
+        var left = start + Math.max(0, (width - ww) / 2);
+        var rowPx = 24 * 96 / 72, EMU = 9525;
+        // neo theo EMU (ExcelJS tính lệch vị trí khi dùng số cột lẻ)
+        var c = 1, px = left; while (px > colPx(c) && c < 40) { px -= colPx(c); c++; }
+        var tl = { nativeCol: c - 1, nativeColOff: Math.round(px * EMU), nativeRow: r + 3, nativeRowOff: Math.round(Math.max(0, (2.6 * rowPx - hh) / 2) * EMU) };
         var id = wb.addImage({ base64: b64, extension: 'png' });
-        // cột: độ rộng ~7px/đơn vị; đặt giữa khối ký
-        ws.addImage(id, { tl: { col: colCenter, row: r + 3.2 }, ext: { width: ww, height: hh }, editAs: 'oneCell' });
+        ws.addImage(id, { tl: tl, ext: { width: ww, height: hh }, editAs: 'oneCell' });
       } catch (e) { }
     };
-    addSig(info.sigNV, 5.15);
-    addSig(info.sigGV, 7.75);
+    addSig(info.sigNV, 1, 6);
+    addSig(info.sigGV, 7, 11);
     put(r + 6, 1, 6, ph && ph.nvHoTen ? ph.nvHoTen : '', { bold: true });
     put(r + 6, 7, 11, info.hoTen, { bold: true });
     if (ph) {
@@ -1235,6 +1245,44 @@ var EX = (function () {
     try { var j = await api('mySignature', {}, true); S.sig = j.ok ? j.dataUrl : ''; } catch (e) { S.sig = ''; }
     return S.sig;
   }
+  /** Khung bao chữ ký bỏ qua chấm lẻ: lấy 0,5%–99,5% số điểm mực theo mỗi trục */
+  function inkBox(isInk, W, H) {
+    var cx = new Uint32Array(W), cy = new Uint32Array(H), tot = 0;
+    for (var y = 0; y < H; y++) for (var x = 0; x < W; x++) if (isInk(y * W + x)) { cx[x]++; cy[y]++; tot++; }
+    if (!tot) return null;
+    var cut = function (arr) {
+      var lo = Math.floor(tot * 0.005), hi = Math.ceil(tot * 0.995), acc = 0, a = 0, b = arr.length - 1, i;
+      for (i = 0; i < arr.length; i++) { acc += arr[i]; if (acc > lo) { a = i; break; } }
+      acc = 0; for (i = 0; i < arr.length; i++) { acc += arr[i]; if (acc >= hi) { b = i; break; } }
+      return [a, b];
+    };
+    var X = cut(cx), Y = cut(cy);
+    return { minX: X[0], maxX: X[1], minY: Y[0], maxY: Y[1] };
+  }
+  /** Cắt sát chữ ký đã lưu (bỏ khoảng trống và chấm lẻ) để hiển thị cân, to */
+  var SIGC = {};
+  function tidySig(url) {
+    if (!url) return Promise.resolve('');
+    if (SIGC[url]) return Promise.resolve(SIGC[url]);
+    return new Promise(function (res) {
+      var im = new Image();
+      im.onload = function () {
+        try {
+          var W = im.naturalWidth, H = im.naturalHeight, c = document.createElement('canvas'); c.width = W; c.height = H;
+          var x = c.getContext('2d'); x.drawImage(im, 0, 0);
+          var p = x.getImageData(0, 0, W, H).data;
+          var b = inkBox(function (k) { return p[k * 4 + 3] > 60; }, W, H);
+          if (!b) return res(SIGC[url] = url);
+          var pad = 4, x0 = Math.max(0, b.minX - pad), y0 = Math.max(0, b.minY - pad), x1 = Math.min(W - 1, b.maxX + pad), y1 = Math.min(H - 1, b.maxY + pad);
+          var o = document.createElement('canvas'); o.width = x1 - x0 + 1; o.height = y1 - y0 + 1;
+          o.getContext('2d').drawImage(c, x0, y0, o.width, o.height, 0, 0, o.width, o.height);
+          res(SIGC[url] = o.toDataURL('image/png'));
+        } catch (e) { res(url); }
+      };
+      im.onerror = function () { res(url); };
+      im.src = url;
+    });
+  }
   /** Tách nền: điểm tối hơn nền -> mực xanh đậm, còn lại trong suốt; cắt sát chữ ký; thu nhỏ */
   function cleanSignature(src) {
     var W = src.width, H = src.height, sc = Math.min(1, 1200 / Math.max(W, H));
@@ -1244,13 +1292,13 @@ var EX = (function () {
     var lum = new Float32Array(n), sum = 0;
     for (var i = 0; i < n; i++) { var a = p[i * 4 + 3] / 255; lum[i] = a < 0.1 ? 255 : 0.299 * p[i * 4] + 0.587 * p[i * 4 + 1] + 0.114 * p[i * 4 + 2]; sum += lum[i]; }
     var bg = sum / n, th = Math.min(bg - 45, 170);
-    var minX = c.width, minY = c.height, maxX = -1, maxY = -1;
     for (var k = 0; k < n; k++) {
       var ink = lum[k] < th;
       p[k * 4] = 12; p[k * 4 + 1] = 40; p[k * 4 + 2] = 140; p[k * 4 + 3] = ink ? Math.min(255, Math.round((th - lum[k]) * 4 + 120)) : 0;
-      if (ink) { var X = k % c.width, Y = (k / c.width) | 0; if (X < minX) minX = X; if (X > maxX) maxX = X; if (Y < minY) minY = Y; if (Y > maxY) maxY = Y; }
     }
-    if (maxX < 0) return '';
+    var bx = inkBox(function (q) { return p[q * 4 + 3] > 0; }, c.width, c.height);
+    if (!bx) return '';
+    var minX = bx.minX, minY = bx.minY, maxX = bx.maxX, maxY = bx.maxY;
     x.putImageData(d, 0, 0);
     var pad = 6; minX = Math.max(0, minX - pad); minY = Math.max(0, minY - pad); maxX = Math.min(c.width - 1, maxX + pad); maxY = Math.min(c.height - 1, maxY + pad);
     var w = maxX - minX + 1, hh = maxY - minY + 1;
@@ -1311,6 +1359,7 @@ var EX = (function () {
     var j = await call('phieuDetail', { id: id });
     if (!j) return;
     var p = j.phieu, its = EX.sortItems(j.items);
+    j.sigGV = await tidySig(j.sigGV); j.sigNV = await tidySig(j.sigNV);
     var canNV = (has('NVTB') && mySitesNV().indexOf(p.diemTruong) >= 0) || has('ADMIN');
     var st = { CHO_DUYET: '⏳ Chờ duyệt', DA_DUYET: '✅ Đồng ý cho mượn', TU_CHOI: '❌ Từ chối' }[p.trangThai] || p.trangThai;
     var h = '<div class="mut sm">Tuần ' + esc(p.soTuan) + ' (' + U.dm(p.tuanBD) + ' – ' + U.dmy(U.addDays(p.tuanBD, 6)) + ') · ' + esc(siteName(p.diemTruong)) + '</div>' +
@@ -1320,8 +1369,8 @@ var EX = (function () {
         return '<tr' + (x.trangThai === 'TU_CHOI' ? ' style="color:#c0392b"' : '') + '><td>' + U.dm(x.ngay) + '</td><td>' + (x.buoi === 'Sáng' ? 'S' : 'C') + x.tiet + '</td><td>' + esc(x.lop) + '</td><td>' + esc(x.mon) + (x.tenBai ? ': ' + esc(x.tenBai) : '') + '</td><td>' + esc(x.tenTB) + (x.catalogId ? '' : ' ✍️') + '</td><td>' + esc(x.soLuong) + '</td></tr>';
       }).join('') + '</table></div>' +
       '<div class="signs"><div><b>NHÂN VIÊN THIẾT BỊ</b><div class="sm">' + st + (p.lyDo ? '<br>Lý do: ' + esc(p.lyDo) : '') + '</div>' +
-      (j.sigNV ? '<img src="' + j.sigNV + '">' : '<div class="nosig"></div>') + '<div>' + esc(p.nvHoTen || '') + '</div><div class="mut sm">' + esc(p.nvKyLuc || '') + '</div></div>' +
-      '<div><b>GIÁO VIÊN</b><div class="sm">Người mượn</div>' + (j.sigGV ? '<img src="' + j.sigGV + '">' : '<div class="nosig"></div>') + '<div>' + esc(p.hoTen) + '</div><div class="mut sm">' + esc(p.gvKyLuc) + '</div></div></div>';
+      '<div class="sg">' + (j.sigNV ? '<img src="' + j.sigNV + '">' : '') + '</div>' + '<div>' + esc(p.nvHoTen || '') + '</div><div class="mut sm">' + esc(p.nvKyLuc || '') + '</div></div>' +
+      '<div><b>GIÁO VIÊN</b><div class="sm">Người mượn</div>' + '<div class="sg">' + (j.sigGV ? '<img src="' + j.sigGV + '">' : '') + '</div>' + '<div>' + esc(p.hoTen) + '</div><div class="mut sm">' + esc(p.gvKyLuc) + '</div></div></div>';
     var f = '<button class="btn sm" id="pvx">⬇ Excel</button>';
     if (canNV && p.trangThai === 'CHO_DUYET') f += '<button class="btn warn grow" id="pvr">❌ Từ chối</button><button class="btn pri grow" id="pva">✅ Đồng ý & ký</button>';
     else if (canNV) f += '<button class="btn grow" id="pvu">↶ Hoàn tác</button>';
@@ -1748,7 +1797,7 @@ var EX = (function () {
       for (var i = 0; i < groups.length; i++) {
         if (!groups[i].phieu) continue;
         var d = await api('phieuDetail', { id: groups[i].phieu.id }, true);
-        if (d.ok) { groups[i].sigGV = d.sigGV; groups[i].sigNV = d.sigNV; groups[i].phieu = d.phieu; }
+        if (d.ok) { groups[i].sigGV = await tidySig(d.sigGV); groups[i].sigNV = await tidySig(d.sigNV); groups[i].phieu = d.phieu; }
       }
       return EX.buildPhieu(S.boot.settings, groups);
     },
@@ -1925,6 +1974,7 @@ var EX = (function () {
       });
       if (!groupsX.length) return toast('Tuần này chưa có giáo viên nào báo.', true);
       var bd = await call('phieuBundle', { tuanBD: S.nv.tuan, site: site });
+      if (bd) { for (var su in bd.sigs) bd.sigs[su] = await tidySig(bd.sigs[su]); }
       if (bd) groupsX.forEach(function (g2) {
         var t2 = tlist.filter(function (x) { return x.hoTen === g2.hoTen; })[0];
         var ph = t2 ? bd.phieu.filter(function (p) { return p.username === t2.username; })[0] : null;
