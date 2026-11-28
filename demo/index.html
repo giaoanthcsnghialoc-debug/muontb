@@ -979,8 +979,48 @@ var EX = (function () {
       toast('Đã đọc ' + teach.length + ' tiết dạy – tuần ' + (p.meta.tuan || weekNo(p.meta.tuanBD)) + ruleMsg(ar));
       renderBao();
     };
+    var cur = S.gv.tuanBD;
+    if (p.meta.tuanBD && p.meta.tuanBD < cur) {
+      // Lịch báo giảng của tuần trước: thường là GV báo mượn trước cho tuần sau
+      var wf = p.meta.tuan || weekNo(p.meta.tuanBD), wc = weekNo(cur);
+      modal('Lịch báo giảng tuần ' + esc(wf),
+        '<p>File thầy/cô vừa tải là lịch báo giảng <b>tuần ' + esc(wf) + '</b> (' + U.dmy(p.meta.tuanBD) + ' – ' + U.dmy(U.addDays(p.meta.tuanBD, 6)) + '), còn đang báo mượn cho <b>tuần ' + wc + '</b>.</p>' +
+        '<p class="mut sm">Chọn “Dùng cho tuần ' + wc + '” để lấy các tiết dạy (thứ, buổi, tiết, lớp, môn) làm khung mượn trước cho tuần ' + wc + '. Khi có lịch báo giảng tuần ' + wc + ' thì tải lên sau để cập nhật tên bài.</p>',
+        '<button class="btn grow" id="lbo">Mở tuần ' + esc(wf) + '</button><button class="btn pri grow" id="lbu">Dùng cho tuần ' + wc + '</button>',
+        function (m, close) {
+          m.querySelector('#lbu').onclick = function () {
+            close();
+            var delta = Math.round((U.parseYmd(cur) - U.parseYmd(p.meta.tuanBD)) / 864e5);
+            addFrame(teach, delta, 'lịch báo giảng tuần ' + wf);
+          };
+          m.querySelector('#lbo').onclick = function () {
+            close();
+            if (S.gv.dirty) confirmBox('Bạn có thay đổi chưa gửi ở tuần đang xem. Mở tuần ' + wf + '?', 'Mở', apply, true); else apply();
+          };
+        });
+      return;
+    }
     if (S.gv.dirty && p.meta.tuanBD !== S.gv.tuanBD) confirmBox('Bạn có thay đổi chưa gửi ở tuần đang xem. Mở tuần trong lịch báo giảng mới?', 'Mở', apply, true);
     else apply();
+  }
+
+  /** Thêm các tiết dạy (dời ngày delta) làm khung mượn trước cho tuần đang xem */
+  async function addFrame(src, delta, label) {
+    var g = S.gv, seen = {}, n = 0;
+    g.rows.forEach(function (r) { seen[r.key] = 1; });
+    var sites = (S.boot.me.diemTruong || '').split(',').filter(Boolean);
+    src.forEach(function (r) {
+      var x = { ngay: U.addDays(r.ngay, delta), buoi: r.buoi, tiet: r.tiet, lop: r.lop, mon: r.mon, ppct: '', bai: '', site: r.site || U.siteOfClass(r.lop) || (sites.length === 1 ? sites[0] : ''), manual: true };
+      x.key = U.rowKey(x);
+      if (seen[x.key]) return;
+      seen[x.key] = 1; g.rows.push(x); n++;
+    });
+    if (n) g.dirty = true;
+    sortRows(g.rows);
+    var ar = applyRules(g.rows);
+    await fetchHints();
+    toast('Đã lấy ' + n + ' tiết từ ' + label + ' cho tuần ' + weekNo(g.tuanBD) + '.' + ruleMsg(ar));
+    renderBao();
   }
 
   /** Lấy lịch báo giảng tuần trước (thứ, buổi, tiết, lớp, môn) làm khung để mượn trước */
@@ -994,20 +1034,7 @@ var EX = (function () {
       back = k;
     }
     if (!src.length) return toast('Chưa có lịch báo giảng tuần ' + (weekNo(g.tuanBD) - 1) + ' (và 3 tuần trước đó) trên app. Hãy thêm tiết thủ công.', true);
-    var seen = {};
-    g.rows.forEach(function (r) { seen[r.key] = 1; });
-    var n = 0;
-    src.forEach(function (r) {
-      var x = { ngay: U.addDays(r.ngay, 7 * back), buoi: r.buoi, tiet: r.tiet, lop: r.lop, mon: r.mon, ppct: '', bai: '', site: r.site || U.siteOfClass(r.lop), manual: true };
-      x.key = U.rowKey(x);
-      if (seen[x.key]) return;
-      seen[x.key] = 1; g.rows.push(x); n++;
-    });
-    sortRows(g.rows);
-    var ar = applyRules(g.rows);
-    await fetchHints();
-    toast('Đã lấy ' + n + ' tiết từ lịch báo giảng tuần ' + (weekNo(g.tuanBD) - back) + '.' + ruleMsg(ar));
-    renderBao();
+    addFrame(src, 7 * back, 'lịch báo giảng tuần ' + (weekNo(g.tuanBD) - back));
   }
 
   function editRow(r) {
