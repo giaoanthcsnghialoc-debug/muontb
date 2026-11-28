@@ -564,8 +564,41 @@ var EX = (function () {
     return wb;
   }
 
+  /** Danh sách tài khoản để gửi cho giáo viên, nhân viên */
+  function buildDSTaiKhoan(st, users, link) {
+    var wb = new ExcelJS.Workbook();
+    var ws = wb.addWorksheet('Tài khoản', { pageSetup: { paperSize: 9, orientation: 'portrait', fitToPage: true, fitToWidth: 1, fitToHeight: 0 } });
+    [6, 28, 22, 16, 18, 14, 24].forEach(function (w, i) { ws.getColumn(i + 1).width = w; });
+    title(ws, 1, (st.TEN_TRUONG || '').toUpperCase(), 1, 7, 12, true);
+    title(ws, 2, 'DANH SÁCH TÀI KHOẢN ỨNG DỤNG MƯỢN THIẾT BỊ DẠY HỌC', 1, 7, 14, true);
+    ws.mergeCells(3, 1, 3, 7);
+    ws.getCell(3, 1).value = { text: 'Địa chỉ ứng dụng: ' + link, hyperlink: link };
+    ws.getCell(3, 1).alignment = { horizontal: 'center' };
+    ws.mergeCells(4, 1, 4, 7);
+    ws.getCell(4, 1).value = 'Đăng nhập bằng tên đăng nhập và mật khẩu bên dưới. Lần đầu đăng nhập: đổi mật khẩu, chọn vai trò, tổ, điểm trường, môn dạy.';
+    ws.getCell(4, 1).alignment = { horizontal: 'center', wrapText: true };
+    ws.getRow(4).height = 32;
+    var head = ['STT', 'Họ và tên', 'Tên đăng nhập', 'Mật khẩu ban đầu', 'Vai trò', 'Tổ', 'Điểm trường'];
+    ws.getRow(6).values = head;
+    var RN = { GV: 'Giáo viên', NVTB: 'NV thiết bị', ADMIN: 'Quản trị' };
+    var r = 7;
+    users.forEach(function (u, i) {
+      ws.getRow(r).values = [i + 1, u.hoTen, u.username, u.doiMK ? '123456' : '(đã tự đổi)',
+        (u.vaiTro || '').split(',').map(function (x) { return RN[x] || x; }).join(', '),
+        u.to || '', (u.diemTruong || '').split(',').filter(Boolean).map(function (k) { return SITE_NAME[k] || k; }).join(', ')];
+      r++;
+    });
+    fontAll(ws, 12);
+    box(ws, 6, r - 1, 1, 7);
+    ws.getRow(6).eachCell(function (c) { c.font = { name: FONT, size: 12, bold: true }; c.alignment = { horizontal: 'center', vertical: 'middle', wrapText: true }; c.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFE2EFDA' } }; });
+    for (var k = 7; k < r; k++) { [1, 4].forEach(function (c) { ws.getCell(k, c).alignment = { horizontal: 'center' }; }); ws.getCell(k, 3).font = { name: FONT, size: 12, bold: true }; }
+    ws.getCell(3, 1).font = { name: FONT, size: 12, color: { argb: 'FF0563C1' }, underline: true };
+    ws.views = [{ state: 'frozen', ySplit: 6 }];
+    return wb;
+  }
+
   return { save: save, buildLBG: buildLBG, buildPhieu: buildPhieu, buildSo: buildSo, buildMauDanhMuc: buildMauDanhMuc,
-    buildMauGV: buildMauGV, gioMT: gioMT, STATUS: STATUS, SITE_NAME: SITE_NAME, sortItems: sortItems };
+    buildMauGV: buildMauGV, buildDSTaiKhoan: buildDSTaiKhoan, gioMT: gioMT, STATUS: STATUS, SITE_NAME: SITE_NAME, sortItems: sortItems };
 })();
 
 /* ===== Ứng dụng Mượn thiết bị dạy học – giao diện ===== */
@@ -2196,7 +2229,7 @@ var EX = (function () {
       .sort(function (a, b) { return a.hoTen.localeCompare(b.hoTen, 'vi'); });
     var role = function (r) { return r.split(',').map(function (x) { return { GV: 'Giáo viên', NVTB: 'NV thiết bị', ADMIN: 'Quản trị' }[x] || x; }).join(', '); };
     var h = '<div class="card"><h2>Tài khoản (' + j.users.length + ')</h2>' +
-      '<div class="row"><button class="btn pri sm" id="ua">+ Thêm</button><button class="btn sm" id="ui">⬆ Tải danh sách từ Excel</button><button class="btn sm" id="um">⬇ File mẫu</button></div>' +
+      '<div class="row"><button class="btn pri sm" id="ua">+ Thêm</button><button class="btn sm" id="ui">⬆ Tải danh sách từ Excel</button><button class="btn sm" id="um">⬇ File mẫu</button><button class="btn sm" id="udl">⬇ Tải danh sách tài khoản</button></div>' +
       '<p class="mut sm" style="margin:8px 0">File Excel chỉ cần cột <b>Họ và tên</b>. Tên đăng nhập tự tạo từ họ tên viết liền không dấu (vd: Đặng Cao Cường → dangcaocuong), mật khẩu ban đầu <b>123456</b>. Lần đầu đăng nhập, mỗi người tự đổi mật khẩu và tự chọn vai trò, tổ, điểm trường, môn dạy.</p>' +
       '<input type="text" id="uq" placeholder="🔍 Tìm…" value="' + esc(q) + '">' +
       users.map(function (u) {
@@ -2214,6 +2247,10 @@ var EX = (function () {
     uq.oninput = function () { S.admin.q = uq.value; clearTimeout(S.admin.t); S.admin.t = setTimeout(function () { re(); setTimeout(function () { var e = document.getElementById('uq'); if (e) { e.focus(); e.setSelectionRange(e.value.length, e.value.length); } }, 50); }, 400); };
     v.querySelector('#ua').onclick = function () { editUser({ vaiTro: 'GV', diemTruong: '' }, re); };
     v.querySelector('#um').onclick = function () { exportWith(EX.buildMauGV, 'Mau_danh_sach_tai_khoan.xlsx'); };
+    v.querySelector('#udl').onclick = function () {
+      var list = j.users.slice().sort(function (a, b) { return a.hoTen.split(' ').pop().localeCompare(b.hoTen.split(' ').pop(), 'vi') || a.hoTen.localeCompare(b.hoTen, 'vi'); });
+      exportWith(function () { return EX.buildDSTaiKhoan(S.boot.settings, list, location.href.split('?')[0].split('#')[0]); }, 'Danh_sach_tai_khoan_muon_thiet_bi.xlsx');
+    };
     v.querySelector('#ui').onclick = function () { pickFile('.xls,.xlsx', function (f) { importUsersFile(f, re); }); };
     v.querySelectorAll('[data-u]').forEach(function (el) { el.onclick = function () { editUser(j.users.filter(function (u) { return u.username === el.dataset.u; })[0], re); }; });
     var preview = function () {
