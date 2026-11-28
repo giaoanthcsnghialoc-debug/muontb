@@ -422,7 +422,7 @@ var EX = (function () {
         var rowPx = 24 * 96 / 72, EMU = 9525;
         // neo theo EMU (ExcelJS tính lệch vị trí khi dùng số cột lẻ)
         var c = 1, px = left; while (px > colPx(c) && c < 40) { px -= colPx(c); c++; }
-        var tl = { nativeCol: c - 1, nativeColOff: Math.round(px * EMU), nativeRow: r + 3, nativeRowOff: Math.round(Math.max(0, (2.6 * rowPx - hh) / 2) * EMU) };
+        var tl = { nativeCol: c - 1, nativeColOff: Math.round(px * EMU), nativeRow: r + 2, nativeRowOff: Math.round(Math.max(0, (3 * rowPx - hh) / 2) * EMU) };
         var id = wb.addImage({ base64: b64, extension: 'png' });
         ws.addImage(id, { tl: tl, ext: { width: ww, height: hh }, editAs: 'oneCell' });
       } catch (e) { }
@@ -986,6 +986,7 @@ var EX = (function () {
       var old = S.gv;
       if (p.meta.tuanBD !== old.tuanBD) await loadGV(p.meta.tuanBD, { parsed: p });
       else {
+        var wasDirty = old.dirty;
         old.parsed = p; old.dirty = true;
         var manual = old.rows.filter(function (r) { return r.manual && !teach.some(function (t) { return t.key === r.key; }); });
         old.rows = teach.map(function (r) { return Object.assign({}, r); }).concat(manual.filter(function (r) { return old.sel[r.key]; }));
@@ -995,8 +996,15 @@ var EX = (function () {
       var sites = (S.boot.me.diemTruong || '').split(',').filter(Boolean);
       S.gv.rows.forEach(function (r) { if (!r.site && sites.length === 1) r.site = sites[0]; });
       var ar = applyRules(S.gv.rows);
+      var upd = '';
+      // tuần đã gửi phiếu: ghi tên bài vào phiếu đã gửi, không phải gửi lại
+      if (S.gv.week && S.gv.week.trangThai && p.meta.tuanBD === S.gv.tuanBD) {
+        var uj = await call('updateLessons', { tuanBD: S.gv.tuanBD, lbg: p.grid, rows: teach.map(function (r) { return { ngay: r.ngay, buoi: r.buoi, tiet: r.tiet, lop: r.lop, mon: r.mon, ppct: r.ppct, bai: r.bai }; }) });
+        if (uj && uj.n) upd = '. Đã điền tên bài vào ' + uj.n + ' lượt mượn đã gửi.';
+        if (uj && typeof wasDirty !== 'undefined' && !wasDirty && !(ar && ar.added)) S.gv.dirty = false;
+      }
       await fetchHints();
-      toast('Đã đọc ' + teach.length + ' tiết dạy – tuần ' + (p.meta.tuan || weekNo(p.meta.tuanBD)) + ruleMsg(ar));
+      toast('Đã đọc ' + teach.length + ' tiết dạy – tuần ' + (p.meta.tuan || weekNo(p.meta.tuanBD)) + ruleMsg(ar) + upd);
       renderBao();
     };
     var cur = S.gv.tuanBD;
