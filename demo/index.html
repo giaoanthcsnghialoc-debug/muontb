@@ -5,7 +5,13 @@
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
 <meta name="theme-color" content="#0f7b4f">
 <title>Mượn thiết bị dạy học – THCS Nghĩa Lộc</title>
-<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Ctext y='.9em' font-size='90'%3E🔬%3C/text%3E%3C/svg%3E">
+<link rel="icon" type="image/png" href="favicon.png">
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="apple-touch-icon" href="apple-touch-icon.png">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-title" content="Mượn TB DEMO">
+<meta name="apple-mobile-web-app-status-bar-style" content="default">
 <style>
 :root{--g:#0f7b4f;--g2:#e7f4ee;--ink:#1d2a24;--mut:#667a71;--line:#dfe7e3;--bg:#f5f8f6;--red:#c0392b;--amb:#b7791f;--blue:#1f5fa8;--r:12px}
 *{box-sizing:border-box}
@@ -746,14 +752,16 @@ var EX = (function () {
   function logoutLocal() { S.token = null; ls(TOKEN_KEY, null); S.boot = null; S.sig = null; S.gv = null; }
 
   function viewLogin(msg) {
-    $app.innerHTML = '<div class="login"><div class="logo">🔬</div>' +
+    $app.innerHTML = '<div class="login"><div class="logo"><img src="icon-192.png" alt="" style="width:72px;height:72px;border-radius:16px" onerror="this.replaceWith(document.createTextNode(\'🔬\'))"></div>' +
       '<h2 style="text-align:center;margin:6px 0 2px">Mượn thiết bị dạy học</h2>' +
       '<p class="mut" style="text-align:center;margin:0 0 18px">' + esc(S.schoolName || 'Trường THCS Nghĩa Lộc') + (window.MTB_ENV === 'prod' ? '' : ' <span class="demo">DEMO</span>') + '</p>' +
       '<div class="card">' + (msg ? '<div class="alert">' + esc(msg) + '</div>' : '') +
       '<label class="f">Tên đăng nhập</label><input type="text" id="lu" autocomplete="username" autocapitalize="none" placeholder="vd: dangcaocuong">' +
       '<label class="f">Mật khẩu</label><input type="password" id="lp" autocomplete="current-password">' +
       '<div style="height:14px"></div><button class="btn pri big" id="lb">Đăng nhập</button>' +
-      '<p class="mut sm" style="margin:12px 0 0">Tên đăng nhập là họ tên viết liền, không dấu. Quên mật khẩu: nhờ quản trị đặt lại.</p></div></div>';
+      '<p class="mut sm" style="margin:12px 0 0">Tên đăng nhập là họ tên viết liền, không dấu. Quên mật khẩu: nhờ quản trị đặt lại.</p></div>' +
+      (isStandalone() ? '' : '<button class="btn big" id="linst" style="margin-top:12px;width:100%">📲 Cài app lên điện thoại / máy tính</button>') + '</div>';
+    var li = document.getElementById('linst'); if (li) li.onclick = installApp;
     var go = async function () {
       var u = document.getElementById('lu').value.trim(), p = document.getElementById('lp').value;
       if (!u || !p) return toast('Nhập tên đăng nhập và mật khẩu', true);
@@ -809,10 +817,11 @@ var EX = (function () {
     document.getElementById('mnu').onclick = function () {
       modal('Tài khoản', '<p><b>' + esc(me.hoTen) + '</b><br><span class="mut">Tên đăng nhập: ' + esc(me.username) + '</span></p>' +
         '<p class="mut sm">Phiên bản ' + esc(S.boot.version) + '</p>',
-        '<button class="btn pri grow" id="mpf">' + (has('GV') ? '⚙️ Hồ sơ của tôi' : '✍️ Chữ ký của tôi') + '</button>' + '<button class="btn grow" id="mcp">Đổi mật khẩu</button><button class="btn warn grow" id="mlo">Đăng xuất</button>',
+        '<button class="btn pri grow" id="mpf">' + (has('GV') ? '⚙️ Hồ sơ của tôi' : '✍️ Chữ ký của tôi') + '</button>' + '<button class="btn grow" id="mcp">Đổi mật khẩu</button><button class="btn warn grow" id="mlo">Đăng xuất</button>' + (isStandalone() ? '' : '<button class="btn grow" id="mins">📲 Cài app</button>'),
         function (m, close) {
           var pf = m.querySelector('#mpf'); if (pf) pf.onclick = function () { close(); if (has('GV')) profileModal(); else signatureModal(); };
           m.querySelector('#mcp').onclick = function () { close(); changePassModal(false); };
+          var mi = m.querySelector('#mins'); if (mi) mi.onclick = function () { close(); installApp(); };
           m.querySelector('#mlo').onclick = async function () { close(); try { await api('logout', {}); } catch (e) { } logoutLocal(); viewLogin(); };
         });
     };
@@ -2392,6 +2401,53 @@ var EX = (function () {
         (j.added.length ? '<button class="btn grow" id="cpu">Sao chép danh sách</button>' : '') + '<button class="btn pri grow" data-x>Xong</button>',
         function (m) { var b = m.querySelector('#cpu'); if (b) b.onclick = function () { copyText('Tài khoản ứng dụng Mượn thiết bị (mật khẩu ban đầu 123456):\n' + txt); }; });
     });
+  }
+
+  /* =================== CÀI APP (PWA) =================== */
+  var installEvt = null;
+  window.addEventListener('beforeinstallprompt', function (e) { e.preventDefault(); installEvt = e; });
+  window.addEventListener('appinstalled', function () { installEvt = null; ls('mtb_installed', '1'); toast('Đã cài app. Mở bằng biểu tượng trên màn hình.'); });
+  function isStandalone() {
+    try { return window.matchMedia('(display-mode: standalone)').matches || window.navigator.standalone === true; } catch (e) { return false; }
+  }
+  async function installApp() {
+    if (installEvt) {
+      installEvt.prompt();
+      try { var r = await installEvt.userChoice; if (r && r.outcome === 'accepted') ls('mtb_installed', '1'); } catch (e) { }
+      installEvt = null;
+      return;
+    }
+    var ua = navigator.userAgent || '';
+    var ios = /iPhone|iPad|iPod/i.test(ua) || (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
+    var inApp = /Zalo|FBAN|FBAV|Messenger|Instagram|Line\//i.test(ua);
+    var h;
+    if (inApp) {
+      h = '<p>Thầy/cô đang mở trong <b>Zalo / Facebook</b> nên chưa cài được.</p><ol>' +
+        '<li>Bấm nút <b>⋯</b> (hoặc <b>⋮</b>) ở góc trên bên phải.</li>' +
+        '<li>Chọn <b>Mở bằng trình duyệt</b> (' + (ios ? 'Safari' : 'Chrome') + ').</li>' +
+        '<li>Đăng nhập rồi bấm lại nút <b>📲 Cài app</b>.</li></ol>';
+    } else if (ios) {
+      h = '<p><b>iPhone / iPad</b> (dùng Safari):</p><ol>' +
+        '<li>Bấm nút <b>Chia sẻ</b> <span style="font-size:18px">⬆️</span> ở thanh dưới cùng (hoặc trên cùng với iPad).</li>' +
+        '<li>Kéo xuống, chọn <b>Thêm vào MH chính</b> (Add to Home Screen).</li>' +
+        '<li>Bấm <b>Thêm</b>. Biểu tượng <b>Mượn TB</b> hiện trên màn hình chính.</li></ol>' +
+        '<p class="mut sm">Nếu đang mở bằng Chrome trên iPhone: bấm nút Chia sẻ trên thanh địa chỉ, cũng chọn “Thêm vào MH chính”.</p>';
+    } else if (/Android/i.test(ua)) {
+      h = '<p><b>Điện thoại Android</b> (dùng Chrome):</p><ol>' +
+        '<li>Bấm nút <b>⋮</b> ở góc trên bên phải Chrome.</li>' +
+        '<li>Chọn <b>Cài đặt ứng dụng</b> hoặc <b>Thêm vào màn hình chính</b>.</li>' +
+        '<li>Bấm <b>Cài đặt</b>. Biểu tượng <b>Mượn TB</b> hiện trên màn hình chính.</li></ol>' +
+        '<p class="mut sm">Máy Samsung dùng trình duyệt Samsung Internet: bấm ☰ → Thêm trang vào → Màn hình chờ.</p>';
+    } else {
+      h = '<p><b>Máy tính</b> (Chrome hoặc Cốc Cốc / Edge):</p><ol>' +
+        '<li>Nhìn bên phải thanh địa chỉ, bấm biểu tượng <b>Cài đặt</b> <span style="font-size:16px">⊕</span> (màn hình có mũi tên).</li>' +
+        '<li>Hoặc bấm <b>⋮</b> → <b>Truyền, lưu và chia sẻ</b> → <b>Cài đặt trang dưới dạng ứng dụng</b>.</li>' +
+        '<li>Bấm <b>Cài đặt</b>. App có biểu tượng riêng trên màn hình nền và thanh tác vụ.</li></ol>';
+    }
+    modal('📲 Cài app Mượn thiết bị', h, '<button class="btn pri grow" data-x>Đã hiểu</button>');
+  }
+  if ('serviceWorker' in navigator && location.protocol === 'https:') {
+    window.addEventListener('load', function () { navigator.serviceWorker.register('sw.js').catch(function () { }); });
   }
 
   start();
