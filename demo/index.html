@@ -137,6 +137,32 @@ body.in-app > .credit{display:none}
 header.top .tabs{padding-top:8px}
 @media (max-width:480px){.who .wn{display:none}.bar h1{font-size:17px}}
 
+/* Cài app */
+.instc:empty{display:none}
+.wrapc{max-width:980px;margin:10px auto 0;padding:0 12px}
+.login .instc{margin-bottom:14px}
+.icardx{display:flex;align-items:center;gap:12px;background:#fff;border:1px solid var(--line);border-radius:14px;padding:12px;box-shadow:0 1px 3px rgba(0,0,0,.05);text-align:left}
+.icardx img{width:46px;height:46px;border-radius:11px;flex:none}
+.icardx .grow{min-width:0}
+.icardx.inapp{background:#fff8e1;border-color:#f5d77a}
+.iact{display:flex;flex-direction:column;gap:6px;align-items:stretch}
+.ihead{display:flex;gap:12px;align-items:center;margin-bottom:10px}
+.ihead img{width:52px;height:52px;border-radius:12px;flex:none}
+.isteps{list-style:none;padding:0;margin:8px 0 12px}
+.isteps li{display:flex;gap:10px;align-items:flex-start;margin:8px 0;line-height:1.45}
+.inum{flex:none;width:24px;height:24px;border-radius:50%;background:#0f7b4f;color:#fff;font-weight:700;font-size:13px;display:flex;align-items:center;justify-content:center;margin-top:1px}
+.iico{display:inline-block;border:1.5px solid currentColor;border-radius:4px;padding:0 4px;font-size:12px;line-height:16px}
+.icoach{position:fixed;inset:0;background:rgba(0,0,0,.55);z-index:200;display:flex;justify-content:center;padding:14px}
+.icoach.bottom,.icoach.bottom-right{align-items:flex-end;padding-bottom:90px}
+.icoach.top-right{align-items:flex-start;padding-top:80px}
+.icard{background:#fff;border-radius:16px;padding:16px;max-width:380px;width:100%;box-shadow:0 10px 30px rgba(0,0,0,.3)}
+.iarrow{position:fixed;font-size:44px;color:#fcd34d;text-shadow:0 2px 6px rgba(0,0,0,.5);animation:ibounce 1s infinite}
+.icoach.bottom .iarrow{bottom:12px;left:50%;margin-left:-20px}
+.icoach.bottom-right .iarrow{bottom:12px;right:18px}
+.icoach.top-right .iarrow{top:6px;right:22px;animation-name:ibounceUp}
+@keyframes ibounce{0%,100%{transform:translateY(0)}50%{transform:translateY(10px)}}
+@keyframes ibounceUp{0%,100%{transform:translateY(0)}50%{transform:translateY(-10px)}}
+
 </style>
 <script>
   /* ====== CẤU HÌNH: dán địa chỉ Ứng dụng web (Apps Script) vào đây ====== */
@@ -777,8 +803,8 @@ var EX = (function () {
       '<label class="f">Mật khẩu</label><input type="password" id="lp" autocomplete="current-password">' +
       '<div style="height:14px"></div><button class="btn pri big" id="lb">Đăng nhập</button>' +
       '<p class="mut sm" style="margin:12px 0 0">Tên đăng nhập là họ tên viết liền, không dấu. Quên mật khẩu: nhờ quản trị đặt lại.</p></div>' +
-      (isStandalone() ? '' : '<button class="btn big" id="linst" style="margin-top:12px;width:100%">📲 Cài app lên điện thoại / máy tính</button>') + '</div>';
-    var li = document.getElementById('linst'); if (li) li.onclick = installApp;
+'</div>';
+    var lc = document.createElement('div'); lc.className = 'instc'; $app.querySelector('.login').insertBefore(lc, $app.querySelector('.login').firstChild); bindInstallCard(lc);
     var go = async function () {
       var u = document.getElementById('lu').value.trim(), p = document.getElementById('lp').value;
       if (!u || !p) return toast('Nhập tên đăng nhập và mật khẩu', true);
@@ -833,7 +859,7 @@ var EX = (function () {
       '<button class="who" id="mnu" title="Tài khoản"><span class="wn">' + esc(me.hoTen) + (me.to ? '<br><span>Tổ ' + esc(me.to) + '</span>' : '') + '</span><span class="av">' + esc(initials(me.hoTen)) + '</span></button></div>' +
       '<div class="hcredit">Ứng dụng được phát triển bởi Thầy Đặng Cao Cường</div></div>' +
       '<nav class="tabs">' + tabs.map(function (x) { return '<button class="tab' + (x[0] === S.tab ? ' on' : '') + '" data-t="' + x[0] + '">' + x[1] + '</button>'; }).join('') + '</nav></header>' +
-      '<main id="v"></main>';
+      '<div class="instc wrapc"></div><main id="v"></main>';
     $app.querySelectorAll('.tab').forEach(function (b) { b.onclick = function () { S.tab = b.dataset.t; shell(); }; });
     document.getElementById('mnu').onclick = function () {
       modal('Tài khoản', '<p><b>' + esc(me.hoTen) + '</b><br><span class="mut">Tên đăng nhập: ' + esc(me.username) + '</span></p>' +
@@ -846,6 +872,7 @@ var EX = (function () {
           m.querySelector('#mlo').onclick = async function () { close(); try { await api('logout', {}); } catch (e) { } logoutLocal(); viewLogin(); };
         });
     };
+    bindInstallCard($app.querySelector('.instc'));
     var V = { bao: viewBao, ls: viewLS, hn: viewHN, tuan: viewTuan, dm: viewDM, so: viewSo, qt: viewQT };
     V[S.tab](document.getElementById('v'));
   }
@@ -2426,47 +2453,137 @@ var EX = (function () {
 
   /* =================== CÀI APP (PWA) =================== */
   var installEvt = null;
-  window.addEventListener('beforeinstallprompt', function (e) { e.preventDefault(); installEvt = e; });
-  window.addEventListener('appinstalled', function () { installEvt = null; ls('mtb_installed', '1'); toast('Đã cài app. Mở bằng biểu tượng trên màn hình.'); });
+  window.addEventListener('beforeinstallprompt', function (e) { e.preventDefault(); installEvt = e; refreshInstallCards(); });
+  window.addEventListener('appinstalled', function () { installEvt = null; ls('mtb_installed', '1'); refreshInstallCards(); toast('Đã cài app. Biểu tượng “Mượn TB” đã có trên màn hình.'); });
+  var UA = navigator.userAgent || '';
   function isStandalone() {
     try { return window.matchMedia('(display-mode: standalone)').matches || window.navigator.standalone === true; } catch (e) { return false; }
   }
+  function isIOS() { return /iPhone|iPad|iPod/i.test(UA) || (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1); }
+  function isAndroid() { return /Android/i.test(UA); }
+  function iosMajor() { var m = UA.match(/OS (\d+)[_.]\d+.*like Mac OS X/); return m ? +m[1] : 0; }
+  function canJumpToSafari() { return iosMajor() >= 17; }
+  /** Đang mở trong trình duyệt của Zalo / Facebook… (không cài được) */
+  function inAppBrowser() {
+    if (/Zalo/i.test(UA)) return 'Zalo';
+    if (/FBAN|FBAV|FB_IAB/i.test(UA)) return 'Facebook';
+    if (/Messenger/i.test(UA)) return 'Messenger';
+    if (/Instagram|Line\/|TikTok|musical_ly/i.test(UA)) return 'ứng dụng khác';
+    if (isIOS() && !/Safari\//.test(UA)) return 'Zalo';      // iPhone: trình duyệt thật đều có "Safari/"
+    if (isAndroid() && /; wv\)/.test(UA)) return 'Zalo';
+    return '';
+  }
+  function appUrl() { return location.origin + location.pathname; }
+  async function copyAppUrl() {
+    try { await navigator.clipboard.writeText(appUrl()); toast('Đã sao chép. Mở Safari, chạm ô địa chỉ, chọn “Dán và đi”.'); }
+    catch (e) { showInstallHelp(); }
+  }
+  /** Một chạm: mở trang này bằng Safari (iPhone) / Chrome (Android) */
+  function openInRealBrowser() {
+    var url = appUrl();
+    if (isIOS()) {
+      if (!canJumpToSafari()) return copyAppUrl();
+      location.href = 'x-safari-' + url;
+    } else if (isAndroid()) {
+      location.href = 'intent://' + url.replace(/^https?:\/\//, '') + '#Intent;scheme=https;package=com.android.chrome;S.browser_fallback_url=' + encodeURIComponent(url) + ';end';
+    }
+    setTimeout(function () { if (document.visibilityState === 'visible') showInstallHelp(); }, 2000);
+  }
   async function installApp() {
+    if (isStandalone()) return toast('App đã được cài trên máy này.');
+    if (inAppBrowser() && (isIOS() || isAndroid())) return openInRealBrowser();
     if (installEvt) {
       installEvt.prompt();
       try { var r = await installEvt.userChoice; if (r && r.outcome === 'accepted') ls('mtb_installed', '1'); } catch (e) { }
-      installEvt = null;
+      installEvt = null; refreshInstallCards();
       return;
     }
-    var ua = navigator.userAgent || '';
-    var ios = /iPhone|iPad|iPod/i.test(ua) || (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
-    var inApp = /Zalo|FBAN|FBAV|Messenger|Instagram|Line\//i.test(ua);
-    var h;
-    if (inApp) {
-      h = '<p>Thầy/cô đang mở trong <b>Zalo / Facebook</b> nên chưa cài được.</p><ol>' +
-        '<li>Bấm nút <b>⋯</b> (hoặc <b>⋮</b>) ở góc trên bên phải.</li>' +
-        '<li>Chọn <b>Mở bằng trình duyệt</b> (' + (ios ? 'Safari' : 'Chrome') + ').</li>' +
-        '<li>Đăng nhập rồi bấm lại nút <b>📲 Cài app</b>.</li></ol>';
-    } else if (ios) {
-      h = '<p><b>iPhone / iPad</b> (dùng Safari):</p><ol>' +
-        '<li>Bấm nút <b>Chia sẻ</b> <span style="font-size:18px">⬆️</span> ở thanh dưới cùng (hoặc trên cùng với iPad).</li>' +
-        '<li>Kéo xuống, chọn <b>Thêm vào MH chính</b> (Add to Home Screen).</li>' +
-        '<li>Bấm <b>Thêm</b>. Biểu tượng <b>Mượn TB</b> hiện trên màn hình chính.</li></ol>' +
-        '<p class="mut sm">Nếu đang mở bằng Chrome trên iPhone: bấm nút Chia sẻ trên thanh địa chỉ, cũng chọn “Thêm vào MH chính”.</p>';
-    } else if (/Android/i.test(ua)) {
-      h = '<p><b>Điện thoại Android</b> (dùng Chrome):</p><ol>' +
-        '<li>Bấm nút <b>⋮</b> ở góc trên bên phải Chrome.</li>' +
-        '<li>Chọn <b>Cài đặt ứng dụng</b> hoặc <b>Thêm vào màn hình chính</b>.</li>' +
-        '<li>Bấm <b>Cài đặt</b>. Biểu tượng <b>Mượn TB</b> hiện trên màn hình chính.</li></ol>' +
-        '<p class="mut sm">Máy Samsung dùng trình duyệt Samsung Internet: bấm ☰ → Thêm trang vào → Màn hình chờ.</p>';
-    } else {
-      h = '<p><b>Máy tính</b> (Chrome hoặc Cốc Cốc / Edge):</p><ol>' +
-        '<li>Nhìn bên phải thanh địa chỉ, bấm biểu tượng <b>Cài đặt</b> <span style="font-size:16px">⊕</span> (màn hình có mũi tên).</li>' +
-        '<li>Hoặc bấm <b>⋮</b> → <b>Truyền, lưu và chia sẻ</b> → <b>Cài đặt trang dưới dạng ứng dụng</b>.</li>' +
-        '<li>Bấm <b>Cài đặt</b>. App có biểu tượng riêng trên màn hình nền và thanh tác vụ.</li></ol>';
-    }
-    modal('📲 Cài app Mượn thiết bị', h, '<button class="btn pri grow" data-x>Đã hiểu</button>');
+    if (isIOS()) return iosCoach();
+    showInstallHelp();
   }
+  function stepsHtml(arr) { return '<ol class="isteps">' + arr.map(function (x, i) { return '<li><span class="inum">' + (i + 1) + '</span><div>' + x + '</div></li>'; }).join('') + '</ol>'; }
+  function showInstallHelp() {
+    var inApp = inAppBrowser(), st;
+    if (inApp) {
+      st = ['Thầy/cô đang mở trong <b>' + esc(inApp) + '</b>, ở đây không cài được.',
+        (isIOS() && !canJumpToSafari()) ? 'Bấm <b>Sao chép</b> ở ô địa chỉ bên dưới → mở <b>Safari</b> → chạm ô địa chỉ trên cùng → chọn <b>Dán và đi</b>.'
+          : 'Bấm nút <b>⋯</b> hoặc <b>⋮</b> ở góc trên bên phải → chọn <b>' + (isIOS() ? 'Mở bằng Safari' : 'Mở bằng trình duyệt') + '</b>.',
+        'Trang mở trong <b>' + (isIOS() ? 'Safari' : 'Chrome') + '</b>, bấm nút <b>Cài</b> ở đầu trang.'];
+    } else if (isIOS()) {
+      st = ['Mở trang này bằng <b>Safari</b> (la bàn màu xanh).',
+        'Bấm nút <b>Chia sẻ</b> <span class="iico">⬆</span> (ô vuông có mũi tên lên) ở thanh dưới cùng. Máy iOS mới không thấy thì bấm <b>⋯</b> góc dưới phải → <b>Chia sẻ</b>.',
+        'Kéo xuống, chọn <b>Thêm vào MH chính</b> (Add to Home Screen).',
+        'Bấm <b>Thêm</b>. Biểu tượng <b>Mượn TB</b> hiện trên màn hình chính.'];
+    } else if (isAndroid()) {
+      st = ['Mở trang này bằng <b>Chrome</b>.', 'Bấm nút <b>⋮</b> ở góc trên bên phải.', 'Chọn <b>Cài đặt ứng dụng</b> (hoặc <b>Thêm vào màn hình chính</b>) → <b>Cài đặt</b>.'];
+    } else {
+      st = ['Máy tính dùng Chrome, Cốc Cốc hoặc Edge: bấm biểu tượng <b>Cài đặt</b> ⊕ ở cuối ô địa chỉ, hoặc menu <b>⋮</b> → <b>Truyền, lưu và chia sẻ</b> → <b>Cài đặt trang dưới dạng ứng dụng</b>.',
+        'Điện thoại: mở địa chỉ dưới đây bằng Chrome (Android) hoặc Safari (iPhone) rồi bấm <b>Cài</b>.'];
+    }
+    modal('📲 Cài app lên điện thoại',
+      '<div class="ihead"><img src="icon-192.png" alt=""><div><b>Mượn TB</b><div class="mut sm">Cài một lần, sau đó mở bằng biểu tượng trên màn hình như ứng dụng khác. Miễn phí, không cần CH Play hay App Store.</div></div></div>' +
+      stepsHtml(st) +
+      '<label class="f">Địa chỉ ứng dụng</label><div class="row"><input type="text" readonly id="iurl" value="' + esc(appUrl()) + '" class="grow"><button class="btn sm" id="icp">Sao chép</button></div>' +
+      (inApp ? '<div class="note" style="margin-top:10px">Cách nhanh nhất: lần sau quét mã QR bằng Camera điện thoại thay vì bấm link trong Zalo – trang sẽ mở thẳng bằng ' + (isIOS() ? 'Safari' : 'Chrome') + '.</div>' : ''),
+      '<button class="btn pri grow" data-x>Đã hiểu</button>',
+      function (m) {
+        m.querySelector('#iurl').onclick = function () { this.select(); };
+        m.querySelector('#icp').onclick = async function () { try { await navigator.clipboard.writeText(appUrl()); toast('Đã sao chép địa chỉ.'); } catch (e) { toast('Chạm giữ vào ô địa chỉ để sao chép.'); } };
+      });
+  }
+  /** iPhone/iPad trong Safari: phủ mờ màn hình, mũi tên nhấp nháy chỉ đúng nút Chia sẻ */
+  function iosCoach() {
+    if (document.querySelector('.icoach')) return;
+    var ipad = /iPad/i.test(UA) || (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
+    var chrome = /CriOS|EdgiOS|FxiOS/i.test(UA), v = iosMajor();
+    var pos = 'bottom', btn = '<b>Chia sẻ <span class="iico">⬆</span></b>';
+    if (ipad || chrome) pos = 'top-right';
+    else if (v >= 26) { pos = 'bottom-right'; btn = '<b>⋯</b>'; }
+    var el = document.createElement('div');
+    el.className = 'icoach ' + pos;
+    el.innerHTML = '<div class="icard"><div class="ihead"><img src="icon-192.png" alt=""><b>Cài Mượn TB lên màn hình chính</b></div>' +
+      stepsHtml(['Bấm nút ' + btn + (pos === 'bottom-right' ? ' ở góc dưới bên phải → chọn <b>Chia sẻ</b>' : (pos === 'top-right' ? ' ở góc trên bên phải' : ' ở giữa thanh dưới cùng')) + ' (mũi tên đang chỉ).',
+        'Kéo xuống, chọn <b>Thêm vào MH chính</b>.', 'Bấm <b>Thêm</b>. Xong!']) +
+      '<div class="row"><button class="btn sm" id="icno">Không thấy nút?</button><button class="btn pri sm grow" id="icok">Đã hiểu</button></div></div>' +
+      '<div class="iarrow">' + (pos === 'top-right' ? '⬆' : '⬇') + '</div>';
+    document.body.appendChild(el);
+    var close = function () { el.remove(); };
+    el.addEventListener('click', function (e) { if (e.target === el) close(); });
+    el.querySelector('#icok').onclick = close;
+    el.querySelector('#icno').onclick = function () { close(); showInstallHelp(); };
+  }
+  /** Thẻ "Cài ứng dụng" ở đầu trang (giống app Đơn nghỉ) */
+  function installCardHtml() {
+    if (isStandalone()) return '';
+    var inApp = inAppBrowser();
+    if (inApp && (isIOS() || isAndroid())) {
+      var br = isIOS() ? 'Safari' : 'Chrome';
+      if (isIOS() && !canJumpToSafari())
+        return '<div class="icardx inapp"><img src="icon-192.png" alt=""><div class="grow"><b>Đang mở trong ' + esc(inApp) + '</b><div class="mut sm">Bấm Sao chép địa chỉ, mở Safari, chạm ô địa chỉ → Dán và đi, rồi cài từ Safari.</div></div>' +
+          '<div class="iact"><button class="btn pri sm" data-ia="copy">Sao chép địa chỉ</button><button class="btn sm" data-ia="help">Hướng dẫn</button></div></div>';
+      return '<div class="icardx inapp"><img src="icon-192.png" alt=""><div class="grow"><b>Đang mở trong ' + esc(inApp) + '</b><div class="mut sm">Mở bằng ' + br + ' để cài app lên màn hình chính.</div></div>' +
+        '<div class="iact"><button class="btn pri sm" data-ia="open">Mở ' + br + '</button></div></div>';
+    }
+    var t = +(ls('mtb_install_later') || 0);
+    if (Date.now() - t < 7 * 864e5) return '';
+    return '<div class="icardx"><img src="icon-192.png" alt=""><div class="grow"><b>Cài app lên ' + (isIOS() || isAndroid() ? 'điện thoại' : 'máy tính') + '</b><div class="mut sm">Có biểu tượng trên màn hình, mở nhanh như ứng dụng thường.</div></div>' +
+      '<div class="iact"><button class="btn pri sm" data-ia="install">📲 Cài</button><button class="btn ghost sm" data-ia="later">Để sau</button></div></div>';
+  }
+  function bindInstallCard(box) {
+    if (!box) return;
+    box.innerHTML = installCardHtml();
+    box.querySelectorAll('[data-ia]').forEach(function (b) {
+      b.onclick = function () {
+        var a = b.dataset.ia;
+        if (a === 'open') openInRealBrowser();
+        else if (a === 'copy') copyAppUrl();
+        else if (a === 'help') showInstallHelp();
+        else if (a === 'install') installApp();
+        else if (a === 'later') { ls('mtb_install_later', String(Date.now())); box.innerHTML = ''; }
+      };
+    });
+  }
+  function refreshInstallCards() { document.querySelectorAll('.instc').forEach(bindInstallCard); }
   if ('serviceWorker' in navigator && location.protocol === 'https:') {
     window.addEventListener('load', function () { navigator.serviceWorker.register('sw.js').catch(function () { }); });
   }
