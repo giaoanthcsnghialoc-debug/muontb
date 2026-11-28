@@ -362,7 +362,7 @@ var EX = (function () {
   function addPhieuSheet(wb, used, st, info, items) {
     var ws = wb.addWorksheet(safeSheetName(info.sheet || info.hoTen, used),
       { pageSetup: { paperSize: 9, orientation: 'landscape', fitToPage: true, fitToWidth: 1, fitToHeight: 0 } });
-    [5, 10, 7, 11, 7, 32, 28, 11, 15, 12, 9, 9, 10].forEach(function (w, i) { ws.getColumn(i + 1).width = w; });
+    [5, 7, 7, 11, 7, 32, 28, 11, 15, 18, 9, 9, 10].forEach(function (w, i) { ws.getColumn(i + 1).width = w; });
     ws.mergeCells('A1:E1'); ws.getCell('A1').value = st.CAP_TREN;
     ws.mergeCells('A2:E2'); ws.getCell('A2').value = st.TEN_TRUONG;
     ['A1', 'A2'].forEach(function (a) { ws.getCell(a).alignment = { horizontal: 'center' }; });
@@ -380,8 +380,8 @@ var EX = (function () {
       r++;
     } else {
       items.forEach(function (it, i) {
-        ws.getRow(r).values = [i + 1, 'Tiết ' + it.tiet + '\n(' + it.buoi + ')', it.tietPPCT, it.mon, it.lop, it.tenBai, it.tenTB,
-          Number(it.soLuong), it.hinhThuc, U.dmy(it.ngay), gioMT(it, st)[0], gioMT(it, st)[1], (it.trangThai === 'DA_GIAO' || it.trangThai === 'DA_TRA') ? 'x' : ''];
+        ws.getRow(r).values = [i + 1, Number(it.tiet), it.tietPPCT, it.mon, it.lop, it.tenBai, it.tenTB,
+          Number(it.soLuong), it.hinhThuc, U.thu(it.ngay) + ', ' + U.dmy(it.ngay), gioMT(it, st)[0], gioMT(it, st)[1], (it.trangThai === 'DA_GIAO' || it.trangThai === 'DA_TRA') ? 'x' : ''];
         r++;
       });
     }
@@ -1377,7 +1377,7 @@ var EX = (function () {
       '<div class="tw"><table class="t"><tr><th>Ngày</th><th>Tiết</th><th>Lớp</th><th>Bài dạy</th><th>Thiết bị</th><th>SL</th><th>Mượn<br>Trả</th></tr>' +
       its.map(function (x) {
         var gm = EX.gioMT(x, S.boot.settings);
-        return '<tr' + (x.trangThai === 'TU_CHOI' ? ' style="color:#c0392b"' : '') + '><td>' + U.dm(x.ngay) + '</td><td>' + (x.buoi === 'Sáng' ? 'S' : 'C') + x.tiet + '</td><td>' + esc(x.lop) + '</td><td>' + esc(x.mon) + (x.tenBai ? ': ' + esc(x.tenBai) : '') + '</td><td>' + esc(x.tenTB) + (x.catalogId ? '' : ' ✍️') + '</td><td>' + esc(x.soLuong) + '</td><td style="white-space:nowrap">' + gm[0] + '<br>' + gm[1] + '</td></tr>';
+        return '<tr' + (x.trangThai === 'TU_CHOI' ? ' style="color:#c0392b"' : '') + '><td style="white-space:nowrap">' + U.thu(x.ngay) + '<br><span class="mut sm">' + U.dm(x.ngay) + '</span></td><td style="text-align:center">' + x.tiet + '</td><td>' + esc(x.lop) + '</td><td>' + esc(x.mon) + (x.tenBai ? ': ' + esc(x.tenBai) : '') + '</td><td>' + esc(x.tenTB) + (x.catalogId ? '' : ' ✍️') + '</td><td>' + esc(x.soLuong) + '</td><td style="white-space:nowrap">' + gm[0] + '<br>' + gm[1] + '</td></tr>';
       }).join('') + '</table></div>' +
       '<div class="signs"><div><b>NHÂN VIÊN THIẾT BỊ</b><div class="sm">' + st + (p.lyDo ? '<br>Lý do: ' + esc(p.lyDo) : '') + '</div>' +
       '<div class="sg">' + (j.sigNV ? '<img src="' + j.sigNV + '">' : '') + '</div>' + '<div>' + esc(p.nvHoTen || '') + '</div><div class="mut sm">' + esc(p.nvKyLuc || '') + '</div></div>' +
@@ -2165,7 +2165,7 @@ var EX = (function () {
         '<span class="chip b">' + n.chua + ' chưa trả</span><span class="chip a">' + n.cho + ' chờ giao</span>' + (n.tc ? '<span class="chip r">' + n.tc + ' từ chối</span>' : '') + (n.hong ? '<span class="chip r">' + n.hong + ' hỏng/thiếu</span>' : '') + '</div>' +
         (it.length ? '<div class="tw"><table class="t"><tr><th>Ngày</th><th>Tiết</th><th>Giáo viên</th><th>Lớp</th><th>Thiết bị</th><th>Mượn</th><th>Trả</th><th></th></tr>' +
           it.slice(0, 300).map(function (x) {
-            return '<tr><td>' + U.dm(x.ngay) + '</td><td>' + (x.buoi === 'Sáng' ? 'S' : 'C') + x.tiet + '</td><td>' + esc(x.hoTen) + '</td><td>' + esc(x.lop) + '</td><td>' + esc(x.tenTB) + ' ×' + x.soLuong +
+            return '<tr><td style="white-space:nowrap">' + U.thu(x.ngay) + '<br><span class="mut sm">' + U.dm(x.ngay) + '</span></td><td style="text-align:center">' + x.tiet + '</td><td>' + esc(x.hoTen) + '</td><td>' + esc(x.lop) + '</td><td>' + esc(x.tenTB) + ' ×' + x.soLuong +
               '</td><td>' + esc(x.gioGiao) + '</td><td>' + esc(x.gioTra) + (!okTT(x.tinhTrang) ? ' <b style="color:#c0392b">' + esc(x.tinhTrang) + '</b>' : '') + '</td><td>' + chipStatus(x.trangThai) + '</td></tr>';
           }).join('') + '</table></div>' + (it.length > 300 ? '<p class="mut sm">Hiển thị 300 dòng đầu – xuất Excel để xem đủ.</p>' : '') : '<div class="empty">Không có dữ liệu.</div>') + '</div>';
     };
