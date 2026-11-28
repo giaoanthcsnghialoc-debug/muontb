@@ -4,7 +4,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
 <meta name="theme-color" content="#0f7b4f">
-<title>Mượn thiết bị dạy học – THCS Nghĩa Lộc</title>
+<title>Thiết bị dạy học – THCS Nghĩa Lộc</title>
 <link rel="icon" type="image/png" href="favicon.png">
 <link rel="manifest" href="manifest.webmanifest">
 <link rel="apple-touch-icon" href="apple-touch-icon.png">
@@ -20,8 +20,8 @@ button,input,select,textarea{font:inherit;color:inherit}
 .credit{background:var(--g);color:#fff;text-align:center;font-size:12.5px;padding:4px 8px;letter-spacing:.2px}
 header.top{background:#fff;border-bottom:1px solid var(--line);position:sticky;top:0;z-index:20}
 .bar{display:flex;align-items:center;gap:10px;padding:10px 14px;max-width:980px;margin:0 auto}
-.bar h1{font-size:17px;margin:0;flex:1;line-height:1.2}
-.bar h1 small{display:block;font-weight:400;color:var(--mut);font-size:12.5px}
+
+
 .demo{background:#fff3cd;color:#8a6200;border-radius:6px;padding:1px 6px;font-size:11px;font-weight:700;margin-left:6px;vertical-align:middle}
 .tabs{display:flex;gap:4px;overflow-x:auto;padding:0 10px 8px;max-width:980px;margin:0 auto;scrollbar-width:none}
 .tabs::-webkit-scrollbar{display:none}
@@ -120,6 +120,22 @@ table.t th{color:var(--mut);font-weight:700;font-size:12.5px}
 .signs>div{display:flex;flex-direction:column;align-items:center}
 .signs .sg{height:100px;width:100%;display:flex;align-items:center;justify-content:center;margin:6px 0}
 .signs .sg img{max-height:100px;max-width:92%;width:auto;height:auto;min-height:60px;object-fit:contain}
+
+/* Đầu trang kiểu app đơn xin nghỉ */
+body.in-app > .credit{display:none}
+.hbar{background:linear-gradient(180deg,#16a06a 0%,#0f7b4f 100%);color:#fff}
+.hbar .bar{padding:10px 14px 8px}
+.hlogo{width:38px;height:38px;border-radius:9px;box-shadow:0 0 0 2px rgba(255,255,255,.85);flex:none}
+.bar h1{font-size:18.5px;margin:0;flex:1;line-height:1.15;font-weight:800;letter-spacing:.4px;color:#fcd34d;min-width:0}
+.bar h1 small{display:block;font-weight:500;color:#fff;font-size:12.5px;letter-spacing:0;margin-top:2px}
+.bar h1 .demo{font-size:10px}
+.who{display:flex;align-items:center;gap:8px;background:none;border:0;color:#fff;cursor:pointer;padding:0;font:inherit;text-align:right}
+.who .wn{font-size:12.5px;font-weight:600;line-height:1.25;max-width:150px}
+.who .wn span{font-weight:400;font-size:11.5px;opacity:.9}
+.who .av{width:36px;height:36px;border-radius:50%;background:#fff;color:#0f7b4f;font-weight:800;font-size:13px;display:flex;align-items:center;justify-content:center;flex:none;box-shadow:0 0 0 2px rgba(255,255,255,.6)}
+.hcredit{max-width:980px;margin:0 auto;border-top:1px solid rgba(255,255,255,.25);text-align:center;color:#fcd34d;font-size:12px;font-weight:600;padding:5px 8px 6px}
+header.top .tabs{padding-top:8px}
+@media (max-width:480px){.who .wn{display:none}.bar h1{font-size:17px}}
 
 </style>
 <script>
@@ -752,8 +768,9 @@ var EX = (function () {
   function logoutLocal() { S.token = null; ls(TOKEN_KEY, null); S.boot = null; S.sig = null; S.gv = null; }
 
   function viewLogin(msg) {
+    document.body.classList.remove('in-app');
     $app.innerHTML = '<div class="login"><div class="logo"><img src="icon-192.png" alt="" style="width:72px;height:72px;border-radius:16px" onerror="this.replaceWith(document.createTextNode(\'🔬\'))"></div>' +
-      '<h2 style="text-align:center;margin:6px 0 2px">Mượn thiết bị dạy học</h2>' +
+      '<h2 style="text-align:center;margin:6px 0 2px;letter-spacing:.5px">THIẾT BỊ DẠY HỌC</h2>' +
       '<p class="mut" style="text-align:center;margin:0 0 18px">' + esc(S.schoolName || 'Trường THCS Nghĩa Lộc') + (window.MTB_ENV === 'prod' ? '' : ' <span class="demo">DEMO</span>') + '</p>' +
       '<div class="card">' + (msg ? '<div class="alert">' + esc(msg) + '</div>' : '') +
       '<label class="f">Tên đăng nhập</label><input type="text" id="lu" autocomplete="username" autocapitalize="none" placeholder="vd: dangcaocuong">' +
@@ -803,14 +820,18 @@ var EX = (function () {
     return t;
   }
 
+  function initials(n) { var w = String(n || '').trim().split(/\s+/); return ((w.length > 1 ? w[w.length - 2][0] : '') + (w[w.length - 1] || '?')[0]).toUpperCase(); }
   function shell() {
+    document.body.classList.add('in-app');
     var tabs = tabsFor();
     if (!S.tab || !tabs.some(function (x) { return x[0] === S.tab; })) S.tab = tabs[0][0];
     var me = S.boot.me;
     $app.innerHTML =
-      '<header class="top"><div class="bar"><h1>Mượn thiết bị dạy học' + (window.MTB_ENV === 'prod' ? '' : '<span class="demo">DEMO</span>') +
-      '<small>' + esc(me.hoTen) + (me.to ? ' · Tổ ' + esc(me.to) : '') + '</small></h1>' +
-      '<button class="btn sm" id="mnu">☰</button></div>' +
+      '<header class="top"><div class="hbar"><div class="bar">' +
+      '<img class="hlogo" src="icon-192.png" alt="" onerror="this.style.display=\'none\'">' +
+      '<h1>THIẾT BỊ DẠY HỌC' + (window.MTB_ENV === 'prod' ? '' : '<span class="demo">DEMO</span>') + '<small>Trường THCS Nghĩa Lộc</small></h1>' +
+      '<button class="who" id="mnu" title="Tài khoản"><span class="wn">' + esc(me.hoTen) + (me.to ? '<br><span>Tổ ' + esc(me.to) + '</span>' : '') + '</span><span class="av">' + esc(initials(me.hoTen)) + '</span></button></div>' +
+      '<div class="hcredit">Ứng dụng được phát triển bởi Thầy Đặng Cao Cường</div></div>' +
       '<nav class="tabs">' + tabs.map(function (x) { return '<button class="tab' + (x[0] === S.tab ? ' on' : '') + '" data-t="' + x[0] + '">' + x[1] + '</button>'; }).join('') + '</nav></header>' +
       '<main id="v"></main>';
     $app.querySelectorAll('.tab').forEach(function (b) { b.onclick = function () { S.tab = b.dataset.t; shell(); }; });
