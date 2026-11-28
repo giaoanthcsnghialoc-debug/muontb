@@ -380,8 +380,8 @@ var EX = (function () {
       r++;
     } else {
       items.forEach(function (it, i) {
-        ws.getRow(r).values = [i + 1, Number(it.tiet), it.tietPPCT, it.mon, it.lop, it.tenBai, it.tenTB,
-          Number(it.soLuong), it.hinhThuc, U.thu(it.ngay) + ', ' + U.dmy(it.ngay), gioMT(it, st)[0], gioMT(it, st)[1], (it.trangThai === 'DA_GIAO' || it.trangThai === 'DA_TRA') ? 'x' : ''];
+        ws.getRow(r).values = [i + 1, Number(it.tiet), /^\d+$/.test(String(it.tietPPCT || '').trim()) ? Number(it.tietPPCT) : (it.tietPPCT || ''), it.mon, it.lop, it.tenBai, it.tenTB,
+          Number(it.soLuong), it.hinhThuc, U.thu(it.ngay) + ', ' + U.dmy(it.ngay), gioMT(it, st)[0], gioMT(it, st)[1], (it.trangThai === 'TU_CHOI' || it.trangThai === 'HUY') ? '' : 'x'];
         r++;
       });
     }
